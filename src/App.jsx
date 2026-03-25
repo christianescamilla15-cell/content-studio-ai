@@ -261,15 +261,31 @@ function shuffled(arr, rng) {
 // ─── BRAND PARSER ────────────────────────────────────────────────────────────
 function parseBrand(brand) {
   const text = brand.trim();
+  const lower = text.toLowerCase();
   const words = text.split(/\s+/);
 
-  // Product name: quoted text, or first 3-4 meaningful words
-  const quotedMatch = text.match(/[""]([^""]+)[""]/) || text.match(/"([^"]+)"/);
+  // Product name: quoted text, or first significant phrase up to 4 words
+  const quotedMatch = text.match(/[""\u201C]([^""\u201D]+)[""\u201D]/) || text.match(/"([^"]+)"/);
   const stopwords = new Set(["de", "del", "la", "el", "los", "las", "un", "una", "unos", "unas", "y", "o", "e", "a", "en", "con", "por", "para", "que", "es", "su", "se", "al", "lo", "más", "muy", "sin", "ni", "como", "nos", "te", "mi", "tu", "ser", "está", "son"]);
   const meaningfulWords = words.filter(w => !stopwords.has(w.toLowerCase()) && w.length > 2);
-  const productName = quotedMatch ? quotedMatch[1] : meaningfulWords.slice(0, 3).join(" ");
+  const productName = quotedMatch ? quotedMatch[1] : words.slice(0, Math.min(4, words.length)).join(" ");
 
-  // Benefits: words/phrases after "que", "para", "con", "permite", "ayuda", "logra", "ofrece"
+  // Extract benefit (after "que", "that", "which")
+  const benefitMatch = text.match(/(?:que|that|which)\s+(.{10,60}?)(?:\.|,|$)/i);
+  const benefit = benefitMatch ? benefitMatch[1].trim() : "";
+
+  // Extract audience (after "para", "for")
+  const audienceMatch = text.match(/(?:para|for)\s+(.{5,40}?)(?:\s+(?:que|con|with|that)|,|\.|$)/i);
+  const audience = audienceMatch ? audienceMatch[1].trim() : "";
+
+  // Extract key descriptors
+  const descriptorWords = ["innovador","adaptativa","inteligente","personalizado","profesional","premium","avanzado","automatizado","smart","intelligent","personalized","advanced","automated","innovative","AI","IA","rápido","eficiente","seguro","moderno","único","exclusivo","potente","fácil","simple","completo","escalable","colaborativo","interactivo","dinámico"];
+  const descriptors = descriptorWords.filter(d => lower.includes(d.toLowerCase()));
+
+  // Extract numbers/stats
+  const numbers = text.match(/\d+\s*(?:minutos?|minutes?|horas?|hours?|días?|days?|%|usuarios?|users?|sesiones?|sessions?)/gi) || [];
+
+  // Benefits: words/phrases after benefit-indicating verbs (keep for compatibility)
   const benefitPatterns = /(?:que|para|con|permite|ayuda a?|logra|ofrece|brinda|genera|mejora|reduce|aumenta|optimiza|facilita|transforma|elimina|garantiza|asegura)\s+([^,.;]+)/gi;
   const benefits = [];
   let m;
@@ -278,7 +294,7 @@ function parseBrand(brand) {
     if (b.length > 3 && b.split(/\s+/).length <= 10) benefits.push(b);
   }
 
-  // Target audience keywords
+  // Target audience keywords (keep for compatibility)
   const audiencePatterns = /(?:para|dirigido a|enfocado en|diseñado para|ideal para|orientado a)\s+([^,.;]+)/gi;
   const audiences = [];
   while ((m = audiencePatterns.exec(text)) !== null) {
@@ -310,14 +326,11 @@ function parseBrand(brand) {
     }
   }
 
-  // Extract key descriptors (adjectives and nouns that define the product)
-  const descriptors = meaningfulWords.filter(w => w.length > 3).slice(0, 8);
-
   // Value proposition: try to extract the core promise
   const valueMatch = text.match(/(?:que\s+)(.{10,60}?)(?:\.|,|$)/i);
-  const valueProp = valueMatch ? valueMatch[1].trim() : (benefits[0] || descriptors.slice(0, 4).join(" "));
+  const valueProp = valueMatch ? valueMatch[1].trim() : (benefits[0] || meaningfulWords.filter(w => w.length > 3).slice(0, 4).join(" "));
 
-  return { productName, benefits, audiences, detectedIndustry, descriptors, valueProp, meaningfulWords };
+  return { productName, benefit, audience, descriptors, numbers, benefits, audiences, detectedIndustry, valueProp, meaningfulWords, raw: text };
 }
 
 // ─── HEADLINE FORMULAS PER TONE ──────────────────────────────────────────────
@@ -593,54 +606,232 @@ function buildDallePrompt(parsed, platform, tone, palette, rng) {
   return `Professional marketing visual for "${parsed.productName}" — a ${parsed.descriptors.slice(0, 4).join(", ")} brand. Scene features ${subject}. ${style} Color palette: ${palette.join(", ")}. Designed for ${platformDims.label} social media (${aspectDesc}, ${platformDims.dims} pixels). Include space for text overlay. 8K resolution, photorealistic rendering, commercial advertising quality, depth of field, cinematic composition.`;
 }
 
+// ─── SMART HEADLINE GENERATOR ───────────────────────────────────────────────
+function generateSmartHeadline(brand, tone, format, lang, rng) {
+  const { productName, benefit, audience, descriptors, numbers } = brand;
+
+  const templates = {
+    professional: {
+      es: [
+        benefit ? `${productName}: ${benefit.charAt(0).toUpperCase() + benefit.slice(1)}` : `${productName} — La Solución Profesional`,
+        audience ? `Diseñado para ${audience}` : `La herramienta que tu equipo necesita`,
+        numbers[0] ? `${productName}: Resultados en ${numbers[0]}` : `${productName}: Resultados que importan`,
+        benefit ? `${productName} — ${benefit.charAt(0).toUpperCase() + benefit.slice(1)}` : `${productName}: Eficiencia Comprobada`,
+      ],
+      en: [
+        benefit ? `${productName}: ${benefit.charAt(0).toUpperCase() + benefit.slice(1)}` : `${productName} — The Professional Solution`,
+        audience ? `Built for ${audience}` : `The tool your team needs`,
+        numbers[0] ? `${productName}: Results in ${numbers[0]}` : `${productName}: Results that matter`,
+        benefit ? `${productName} — ${benefit.charAt(0).toUpperCase() + benefit.slice(1)}` : `${productName}: Proven Efficiency`,
+      ]
+    },
+    inspirational: {
+      es: [
+        `Transforma tu ${audience || 'día'} con ${productName}`,
+        benefit ? `Imagina ${benefit}` : `El cambio empieza aquí`,
+        `${productName}: Más que una herramienta, una experiencia`,
+        audience ? `${audience}: Tu próximo gran paso es ${productName}` : `${productName}: Donde comienzan los grandes cambios`,
+      ],
+      en: [
+        `Transform your ${audience || 'day'} with ${productName}`,
+        benefit ? `Imagine ${benefit}` : `Change starts here`,
+        `${productName}: More than a tool, an experience`,
+        audience ? `${audience}: Your next big step is ${productName}` : `${productName}: Where great changes begin`,
+      ]
+    },
+    urgent: {
+      es: [
+        `¡No esperes más! ${productName} ya está aquí`,
+        numbers[0] ? `Solo ${numbers[0]} para ver resultados` : `Resultados desde el primer día`,
+        audience ? `${audience}: Esta es tu oportunidad` : `Tu oportunidad es ahora`,
+        benefit ? `Últimos lugares: ${benefit}` : `${productName} — Oferta por tiempo limitado`,
+      ],
+      en: [
+        `Don't wait! ${productName} is here`,
+        numbers[0] ? `Just ${numbers[0]} to see results` : `Results from day one`,
+        audience ? `${audience}: This is your chance` : `Your opportunity is now`,
+        benefit ? `Last spots: ${benefit}` : `${productName} — Limited time offer`,
+      ]
+    },
+    fun: {
+      es: [
+        `${productName}: Porque la vida es mejor con tecnología 🚀`,
+        benefit ? `¿Y si pudieras ${benefit}? Ahora puedes` : `Prepárate para lo increíble`,
+        `Dale un upgrade a tu ${audience || 'rutina'}`,
+        `${productName} — Tu nuevo favorito oficial 🎉`,
+      ],
+      en: [
+        `${productName}: Because life is better with tech 🚀`,
+        benefit ? `What if you could ${benefit}? Now you can` : `Get ready for something amazing`,
+        `Upgrade your ${audience || 'routine'}`,
+        `${productName} — Your new favorite thing 🎉`,
+      ]
+    },
+    minimalist: {
+      es: [
+        productName,
+        benefit ? benefit.charAt(0).toUpperCase() + benefit.slice(1) : `Simple. Efectivo. ${productName}`,
+        audience ? `Para ${audience}` : `Menos es más`,
+        `${productName}. Nada sobra.`,
+      ],
+      en: [
+        productName,
+        benefit ? benefit.charAt(0).toUpperCase() + benefit.slice(1) : `Simple. Effective. ${productName}`,
+        audience ? `For ${audience}` : `Less is more`,
+        `${productName}. Nothing wasted.`,
+      ]
+    }
+  };
+
+  const toneMap = { 'profesional': 'professional', 'inspirador': 'inspirational', 'urgente': 'urgent', 'divertido': 'fun', 'minimalista': 'minimalist', 'professional': 'professional', 'inspirational': 'inspirational', 'urgent': 'urgent', 'fun': 'fun', 'minimalist': 'minimalist' };
+  const toneKey = toneMap[tone.toLowerCase()] || 'professional';
+  const langKey = (lang === 'en') ? 'en' : 'es';
+  const toneTemplates = templates[toneKey]?.[langKey] || templates.professional[langKey];
+
+  return pickRandom(shuffled(toneTemplates, rng), rng);
+}
+
+// ─── SMART SUBHEADLINE GENERATOR ────────────────────────────────────────────
+function generateSmartSubheadline(brand, tone, lang, rng) {
+  const { productName, benefit, audience, descriptors, numbers } = brand;
+  const langKey = (lang === 'en') ? 'en' : 'es';
+
+  const templates = {
+    es: [
+      audience && benefit ? `La solución para ${audience} que necesitan ${benefit}` : null,
+      audience ? `Creado especialmente para ${audience}` : null,
+      benefit ? `Descubre cómo ${benefit} puede cambiar todo` : null,
+      descriptors.length ? `Con tecnología ${descriptors.slice(0, 2).join(' y ')}` : null,
+      numbers[0] ? `Resultados comprobados: ${numbers[0]}` : null,
+      `${productName} — la herramienta que marca la diferencia`,
+    ],
+    en: [
+      audience && benefit ? `The solution for ${audience} who need ${benefit}` : null,
+      audience ? `Built specifically for ${audience}` : null,
+      benefit ? `Discover how ${benefit} can change everything` : null,
+      descriptors.length ? `Powered by ${descriptors.slice(0, 2).join(' & ')} technology` : null,
+      numbers[0] ? `Proven results: ${numbers[0]}` : null,
+      `${productName} — the tool that makes the difference`,
+    ]
+  };
+
+  const candidates = (templates[langKey] || templates.es).filter(Boolean);
+  return pickRandom(shuffled(candidates, rng), rng);
+}
+
+// ─── SMART BODY GENERATOR ───────────────────────────────────────────────────
+function generateSmartBody(brand, tone, format, lang, rng) {
+  const { productName, benefit, audience, descriptors, numbers } = brand;
+
+  const parts = [];
+
+  if (lang === 'en') {
+    if (audience) parts.push(`Built specifically for ${audience}.`);
+    if (benefit) parts.push(`${productName} lets you ${benefit}.`);
+    if (descriptors.length) parts.push(`Powered by ${descriptors.join(', ')} technology.`);
+    if (numbers.length) parts.push(`Proven results: ${numbers.join(', ')}.`);
+    if (!parts.length) parts.push(`${productName} is the solution you've been looking for. Discover how it can transform the way you work.`);
+  } else {
+    if (audience) parts.push(`Diseñado especialmente para ${audience}.`);
+    if (benefit) parts.push(`${productName} te permite ${benefit}.`);
+    if (descriptors.length) parts.push(`Con tecnología ${descriptors.join(', ')}.`);
+    if (numbers.length) parts.push(`Resultados comprobados: ${numbers.join(', ')}.`);
+    if (!parts.length) parts.push(`${productName} es la solución que estabas buscando. Descubre cómo puede transformar tu forma de trabajar.`);
+  }
+
+  return parts.join(' ');
+}
+
+// ─── SMART CTA GENERATOR ───────────────────────────────────────────────────
+function generateSmartCTA(brand, format, lang, rng) {
+  const { productName, numbers } = brand;
+
+  const ctas = {
+    es: {
+      Producto: [`Descubre ${productName}`, 'Lo quiero ahora', 'Ver producto'],
+      Servicio: ['Agenda tu consulta gratis', 'Solicita una demo', 'Empieza gratis'],
+      Evento: ['Reserva tu lugar ahora', 'Inscríbete ya', 'Quiero asistir'],
+      Oferta: [numbers[0] ? `Prueba gratis por ${numbers[0]}` : 'Empieza gratis hoy', 'Aprovechar oferta', 'Activar promoción'],
+      Branding: [`Conoce ${productName}`, 'Descubre nuestra historia', 'Únete al movimiento'],
+    },
+    en: {
+      Producto: [`Discover ${productName}`, 'I want it now', 'View product'],
+      Servicio: ['Book your free consultation', 'Request a demo', 'Start free'],
+      Evento: ['Reserve your spot now', 'Sign up now', 'I want to attend'],
+      Oferta: [numbers[0] ? `Try free for ${numbers[0]}` : 'Start free today', 'Grab this offer', 'Activate promotion'],
+      Branding: [`Meet ${productName}`, 'Discover our story', 'Join the movement'],
+    }
+  };
+
+  const langKey = (lang === 'en') ? 'en' : 'es';
+  const formatCtas = ctas[langKey]?.[format] || ctas[langKey]?.Producto || ctas.es.Producto;
+  return pickRandom(shuffled(formatCtas, rng), rng);
+}
+
+// ─── SMART HASHTAG GENERATOR ────────────────────────────────────────────────
+function generateSmartHashtags(brand, lang, platform, format, rng) {
+  const { productName, audience, descriptors } = brand;
+  const tags = [];
+  const seen = new Set();
+  const addTag = (t) => { if (t && !seen.has(t.toLowerCase())) { seen.add(t.toLowerCase()); tags.push(t); } };
+
+  // From product name
+  const cleanName = productName.replace(/[^a-zA-ZáéíóúñÁÉÍÓÚÑ0-9]/g, '');
+  if (cleanName.length > 3) addTag(cleanName);
+
+  // From descriptors
+  descriptors.slice(0, 2).forEach(d => addTag(d.replace(/\s/g, '')));
+
+  // From audience
+  if (audience) {
+    const cleanAud = audience.split(' ').slice(0, 2).join('').replace(/[^a-zA-ZáéíóúñÁÉÍÓÚÑ]/g, '');
+    if (cleanAud.length > 3) addTag(cleanAud);
+  }
+
+  // Industry + format + platform tags
+  const industryTags = shuffled(INDUSTRY_HASHTAGS[brand.detectedIndustry] || INDUSTRY_HASHTAGS.general, rng);
+  const formatTags = shuffled(FORMAT_HASHTAGS[format] || FORMAT_HASHTAGS.Producto, rng);
+  const platTags = shuffled(PLATFORM_HASHTAGS[platform] || PLATFORM_HASHTAGS.instagram, rng);
+
+  industryTags.slice(0, 2).forEach(addTag);
+  formatTags.slice(0, 1).forEach(addTag);
+  platTags.slice(0, 1).forEach(addTag);
+
+  // Fill with generic relevant tags if needed
+  const genericES = ['Innovación', 'Tecnología', 'NegociosDigitales', 'Productividad', 'Emprendimiento'];
+  const genericEN = ['Innovation', 'Technology', 'DigitalBusiness', 'Productivity', 'Entrepreneurship'];
+  const generic = lang === 'en' ? genericEN : genericES;
+  let gi = 0;
+  while (tags.length < 5 && gi < generic.length) { addTag(generic[gi]); gi++; }
+
+  return tags.slice(0, 7);
+}
+
 // ─── MAIN GENERATOR FUNCTION ─────────────────────────────────────────────────
-function generateSmartContent(brand, platform, tone, format, generationCount) {
+function generateSmartContent(brand, platform, tone, format, generationCount, lang) {
   const parsed = parseBrand(brand);
   const seed = hashString(brand + platform + tone + format) + generationCount * 7919;
   const rng = createRng(seed);
 
-  // Pick headline
-  const formulas = HEADLINE_FORMULAS[tone] || HEADLINE_FORMULAS.Profesional;
-  const headline = pickRandom(shuffled(formulas, rng), rng)(parsed.productName, parsed.valueProp);
+  // Detect language from UI lang parameter, fallback to content detection
+  const detectedLang = lang || (parsed.raw.match(/\b(the|for|with|and|that|which)\b/i) ? 'en' : 'es');
 
-  // Pick subheadline
-  const subFormulas = SUBHEADLINE_FORMULAS[tone] || SUBHEADLINE_FORMULAS.Profesional;
-  const subheadline = pickRandom(shuffled(subFormulas, rng), rng)(parsed.benefits[0] || "", parsed.audiences[0] || "");
+  // Smart headline from actual brand content
+  const headline = generateSmartHeadline(parsed, tone, format, detectedLang, rng);
 
-  // Pick body
-  const bodyFormulas = BODY_FORMULAS[tone] || BODY_FORMULAS.Profesional;
-  const body = pickRandom(shuffled(bodyFormulas, rng), rng)(
-    parsed.productName,
-    parsed.benefits[0] || "",
-    parsed.audiences[0] || "",
-    parsed.descriptors
-  );
+  // Smart subheadline from actual brand content
+  const subheadline = generateSmartSubheadline(parsed, tone, detectedLang, rng);
 
-  // Pick CTA
-  const ctas = CTA_BY_FORMAT[format] || CTA_BY_FORMAT.Producto;
-  const cta = pickRandom(shuffled(ctas, rng), rng);
+  // Smart body from actual brand content
+  const body = generateSmartBody(parsed, tone, format, detectedLang, rng);
 
-  // Generate hashtags: 2 from brand keywords + 2 from industry + 1 from format + 1 from platform + 1 bonus
-  const brandHashtags = parsed.meaningfulWords
-    .filter(w => w.length > 3)
-    .map(w => w.toLowerCase().replace(/[^a-záéíóúñü]/gi, ""))
-    .filter(w => w.length > 2);
-  const industryTags = shuffled(INDUSTRY_HASHTAGS[parsed.detectedIndustry] || INDUSTRY_HASHTAGS.general, rng);
-  const formatTags = shuffled(FORMAT_HASHTAGS[format] || FORMAT_HASHTAGS.Producto, rng);
-  const platTags = shuffled(PLATFORM_HASHTAGS[platform] || PLATFORM_HASHTAGS.instagram, rng);
+  // Smart CTA from actual brand content
+  const cta = generateSmartCTA(parsed, format, detectedLang, rng);
 
-  const allTags = [];
-  const seen = new Set();
-  const addTag = (t) => { if (t && !seen.has(t)) { seen.add(t); allTags.push(t); } };
-  shuffled(brandHashtags, rng).slice(0, 2).forEach(addTag);
-  industryTags.slice(0, 2).forEach(addTag);
-  formatTags.slice(0, 1).forEach(addTag);
-  platTags.slice(0, 1).forEach(addTag);
-  // Fill to at least 5
-  [...industryTags, ...formatTags, ...brandHashtags].forEach(t => { if (allTags.length < 5) addTag(t); });
-  const hashtags = allTags.slice(0, 7);
+  // Smart hashtags from actual brand content
+  const hashtags = generateSmartHashtags(parsed, detectedLang, platform, format, rng);
 
-  // Color palette
+  // Color palette (kept as-is — works well)
   let palettes;
   if (tone === "Minimalista") {
     palettes = TONE_PALETTE_ADJUSTMENTS.Minimalista;
@@ -649,14 +840,14 @@ function generateSmartContent(brand, platform, tone, format, generationCount) {
   }
   const color_palette = pickRandom(shuffled(palettes, rng), rng);
 
-  // Emojis
+  // Emojis (kept as-is)
   const emojiOptions = EMOJI_SETS[tone] || EMOJI_SETS.Profesional;
   const emoji_set = pickRandom(shuffled(emojiOptions, rng), rng);
 
-  // DALL-E prompt
+  // DALL-E prompt (kept as-is — works well)
   const dalle_prompt = buildDallePrompt(parsed, platform, tone, color_palette, rng);
 
-  // Posting time
+  // Posting time (kept as-is)
   const times = POSTING_TIMES[platform] || POSTING_TIMES.instagram;
   const posting_time = pickRandom(shuffled(times, rng), rng);
 
@@ -1419,7 +1610,7 @@ export default function ContentGenerator() {
       }
       if (generationIdRef.current !== currentGenId) return;
 
-      const finalResult = generateSmartContent(brand.trim().length >= BRAND_MIN ? brand : TOUR_TEXT[tourLang].sampleBrand, "instagram", "Profesional", "Producto", nextCount);
+      const finalResult = generateSmartContent(brand.trim().length >= BRAND_MIN ? brand : TOUR_TEXT[tourLang].sampleBrand, "instagram", "Profesional", "Producto", nextCount, tourLang);
       finalResult._toolUse = false;
       setUsedAI(false);
       setResult(finalResult);
@@ -1456,7 +1647,7 @@ export default function ContentGenerator() {
       if (result) {
         const variantResults = [];
         for (let v = 0; v < 2; v++) {
-          const varResult = generateSmartContent(brand || TOUR_TEXT[tourLang].sampleBrand, "instagram", "Profesional", "Producto", generationCount + 100 + v * 37);
+          const varResult = generateSmartContent(brand || TOUR_TEXT[tourLang].sampleBrand, "instagram", "Profesional", "Producto", generationCount + 100 + v * 37, tourLang);
           variantResults.push({ ...varResult, source: "template" });
         }
         setVariants(variantResults);
@@ -1518,7 +1709,7 @@ export default function ContentGenerator() {
       aiUsed = true;
       finalResult = claudeResult;
     } else {
-      finalResult = generateSmartContent(brand, platform, tone, format, nextCount);
+      finalResult = generateSmartContent(brand, platform, tone, format, nextCount, lang);
     }
     finalResult._toolUse = toolUseMode;
 
@@ -1622,7 +1813,7 @@ export default function ContentGenerator() {
         const claudeVar = await generateWithClaude(apiKey.trim(), brand, platform, tone, format, lang);
         if (claudeVar) { variantResults.push({ ...claudeVar, source: "ai" }); continue; }
       }
-      const varResult = generateSmartContent(brand, platform, tone, format, generationCount + 100 + v * 37);
+      const varResult = generateSmartContent(brand, platform, tone, format, generationCount + 100 + v * 37, lang);
       variantResults.push({ ...varResult, source: "template" });
     }
     setVariants(variantResults);
