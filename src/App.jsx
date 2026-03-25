@@ -1305,97 +1305,132 @@ function generateHooks(brandAnalysis, audienceProfile, lang) {
   const { painPoints, desires } = audienceProfile;
 
   const hooks = [];
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 
-  // 1. CURIOSITY GAP
+  // 1. CURIOSITY GAP — 3 variations per language
   if (lang === 'es') {
-    hooks.push({
-      type: 'curiosity',
-      hook: benefit
+    const options = [
+      benefit
         ? `Lo que ${audience || 'nadie'} no sabía sobre ${benefit.split(' ').slice(0, 4).join(' ')}`
         : `El secreto que está transformando a ${audience || 'miles de profesionales'}`,
-      score: 0
-    });
+      benefit
+        ? `${audience || 'Nadie'} esperaba esto sobre ${benefit.split(' ').slice(0, 4).join(' ')}`
+        : `Lo que ${audience || 'los expertos'} no quieren que sepas`,
+      benefit
+        ? `La verdad oculta detrás de ${benefit.split(' ').slice(0, 4).join(' ')}`
+        : `El cambio que ${audience || 'miles'} ya están haciendo en silencio`,
+    ];
+    hooks.push({ type: 'curiosity', hook: pick(options), score: 0 });
   } else {
-    hooks.push({
-      type: 'curiosity',
-      hook: benefit
+    const options = [
+      benefit
         ? `What ${audience || 'no one'} knew about ${benefit.split(' ').slice(0, 4).join(' ')}`
         : `The secret transforming ${audience || 'thousands of professionals'}`,
-      score: 0
-    });
+      benefit
+        ? `${audience || 'No one'} expected this about ${benefit.split(' ').slice(0, 4).join(' ')}`
+        : `What ${audience || 'experts'} don't want you to know`,
+      benefit
+        ? `The hidden truth behind ${benefit.split(' ').slice(0, 4).join(' ')}`
+        : `The shift ${audience || 'thousands'} are already making quietly`,
+    ];
+    hooks.push({ type: 'curiosity', hook: pick(options), score: 0 });
   }
 
-  // 2. SPECIFIC NUMBER
+  // 2. SPECIFIC NUMBER — 3 variations per language
   if (metrics.length > 0) {
     const metric = metrics[0];
     if (lang === 'es') {
-      hooks.push({
-        type: 'number',
-        hook: `${metric} es todo lo que necesitas${audience ? ` como ${audience.split(' ').slice(0, 3).join(' ')}` : ''}`,
-        score: 0
-      });
+      const options = [
+        `${metric} es todo lo que necesitas${audience ? ` como ${audience.split(' ').slice(0, 3).join(' ')}` : ''}`,
+        `Solo ${metric} para cambiar tu rutina${audience ? ` como ${audience.split(' ').slice(0, 3).join(' ')}` : ''}`,
+        `${metric}: la diferencia entre antes y después`,
+      ];
+      hooks.push({ type: 'number', hook: pick(options), score: 0 });
     } else {
-      hooks.push({
-        type: 'number',
-        hook: `${metric} is all you need${audience ? ` as ${audience.split(' ').slice(0, 3).join(' ')}` : ''}`,
-        score: 0
-      });
+      const options = [
+        `${metric} is all you need${audience ? ` as ${audience.split(' ').slice(0, 3).join(' ')}` : ''}`,
+        `Just ${metric} to change your routine${audience ? ` as ${audience.split(' ').slice(0, 3).join(' ')}` : ''}`,
+        `${metric}: the difference between before and after`,
+      ];
+      hooks.push({ type: 'number', hook: pick(options), score: 0 });
     }
   }
 
-  // 3. PAIN → TRANSFORMATION
+  // 3. PAIN → TRANSFORMATION — 3 variations per language
   if (painPoints.length > 0 && desires.length > 0) {
     if (lang === 'es') {
-      hooks.push({
-        type: 'transformation',
-        hook: `De ${painPoints[0]} a ${desires[0]}. Así de simple.`,
-        score: 0
-      });
+      const options = [
+        `De ${painPoints[0]} a ${desires[0]}. Así de simple.`,
+        `${painPoints[0]} ya no tiene que definirte. Ahora es ${desires[0]}.`,
+        `Deja atrás ${painPoints[0]}. Bienvenido a ${desires[0]}.`,
+      ];
+      hooks.push({ type: 'transformation', hook: pick(options), score: 0 });
     } else {
-      hooks.push({
-        type: 'transformation',
-        hook: `From ${painPoints[0]} to ${desires[0]}. That simple.`,
-        score: 0
-      });
+      const options = [
+        `From ${painPoints[0]} to ${desires[0]}. That simple.`,
+        `${painPoints[0]} doesn't have to define you. Now it's ${desires[0]}.`,
+        `Leave ${painPoints[0]} behind. Welcome to ${desires[0]}.`,
+      ];
+      hooks.push({ type: 'transformation', hook: pick(options), score: 0 });
     }
   }
 
-  // 4. PROVOCATIVE QUESTION
+  // 4. PROVOCATIVE QUESTION — 3 variations per language
   if (lang === 'es') {
-    hooks.push({
-      type: 'question',
-      hook: audience
+    const options = [
+      audience
         ? `¿Eres ${audience.split(' ').slice(0, 3).join(' ')} y sigues sin esto?`
         : `¿Todavía haces esto de la manera difícil?`,
-      score: 0
-    });
+      audience
+        ? `¿Cuánto más vas a esperar, ${audience.split(' ').slice(0, 3).join(' ')}?`
+        : `¿Y si te dijéramos que hay una forma mejor?`,
+      audience
+        ? `${audience.split(' ').slice(0, 3).join(' ')}: ¿por qué sigues sin probarlo?`
+        : `¿Sigues haciendo esto manualmente?`,
+    ];
+    hooks.push({ type: 'question', hook: pick(options), score: 0 });
   } else {
-    hooks.push({
-      type: 'question',
-      hook: audience
+    const options = [
+      audience
         ? `You're ${audience.split(' ').slice(0, 3).join(' ')} and still don't have this?`
         : `Still doing this the hard way?`,
-      score: 0
-    });
+      audience
+        ? `How much longer will you wait, ${audience.split(' ').slice(0, 3).join(' ')}?`
+        : `What if there was a better way?`,
+      audience
+        ? `${audience.split(' ').slice(0, 3).join(' ')}: why haven't you tried this yet?`
+        : `Still doing this manually?`,
+    ];
+    hooks.push({ type: 'question', hook: pick(options), score: 0 });
   }
 
-  // 5. SOCIAL PROOF / AUTHORITY
+  // 5. SOCIAL PROOF / AUTHORITY — 3 variations per language
   if (lang === 'es') {
-    hooks.push({
-      type: 'authority',
-      hook: metrics.length > 0
+    const options = [
+      metrics.length > 0
         ? `${metrics[0]}: los resultados que ${audience || 'los expertos'} ya están viendo`
         : `Por qué ${audience || 'los líderes de industria'} están eligiendo esto`,
-      score: 0
-    });
+      metrics.length > 0
+        ? `${audience || 'Los profesionales'} ya lo comprobaron: ${metrics[0]}`
+        : `${audience || 'Miles de personas'} ya dieron el paso. ¿Y tú?`,
+      metrics.length > 0
+        ? `Resultados reales: ${metrics[0]} — pregúntale a ${audience || 'quienes ya lo usan'}`
+        : `Lo que ${audience || 'los pioneros'} descubrieron primero`,
+    ];
+    hooks.push({ type: 'authority', hook: pick(options), score: 0 });
   } else {
-    hooks.push({
-      type: 'authority',
-      hook: metrics.length > 0
+    const options = [
+      metrics.length > 0
         ? `${metrics[0]}: the results ${audience || 'experts'} are already seeing`
         : `Why ${audience || 'industry leaders'} are choosing this`,
-      score: 0
-    });
+      metrics.length > 0
+        ? `${audience || 'Professionals'} already proved it: ${metrics[0]}`
+        : `${audience || 'Thousands'} already took the leap. Will you?`,
+      metrics.length > 0
+        ? `Real results: ${metrics[0]} — ask ${audience || 'those already using it'}`
+        : `What ${audience || 'early adopters'} discovered first`,
+    ];
+    hooks.push({ type: 'authority', hook: pick(options), score: 0 });
   }
 
   return hooks;
@@ -1428,7 +1463,8 @@ function evaluateViralScore(hooks, platform) {
     if (platform.toLowerCase().includes('instagram') && hook.type === 'transformation') score += 10;
     if (platform.toLowerCase().includes('facebook') && hook.type === 'question') score += 10;
 
-    hook.score = Math.min(100, Math.max(0, score));
+    // Add controlled randomness so results vary each generation
+    hook.score = Math.min(100, Math.max(0, score + Math.floor(Math.random() * 20 - 5)));
     return hook;
   }).sort((a, b) => b.score - a.score);
 }
@@ -1457,30 +1493,40 @@ function creativeTransform(bestHook, brandAnalysis, audienceProfile, tone, forma
   }
 
   // Body: empathize → present solution → proof → emotional close
+  const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
   const bodyParts = [];
   if (lang === 'es') {
-    if (painPoints[0]) bodyParts.push(`Sabemos lo que es lidiar con ${painPoints[0]}.`);
+    if (painPoints[0]) bodyParts.push(pick([
+      `Sabemos lo que es lidiar con ${painPoints[0]}.`,
+      `${painPoints[0]} no debería ser tu día a día.`,
+      `Si ${painPoints[0]} te suena familiar, sigue leyendo.`,
+    ]));
     if (benefit) bodyParts.push(`${productName} ${benefit}.`);
     else bodyParts.push(`${productName} fue creado para resolver exactamente eso.`);
     if (metrics.length > 0) bodyParts.push(`Resultados reales: ${metrics.join(', ')}.`);
     if (desires[0]) bodyParts.push(`Porque ${audience || 'tú'} merece ${desires[0]}.`);
   } else {
-    if (painPoints[0]) bodyParts.push(`We know what it's like dealing with ${painPoints[0]}.`);
+    if (painPoints[0]) bodyParts.push(pick([
+      `We know what it's like dealing with ${painPoints[0]}.`,
+      `${painPoints[0]} shouldn't be your everyday reality.`,
+      `If ${painPoints[0]} sounds familiar, keep reading.`,
+    ]));
     if (benefit) bodyParts.push(`${productName} ${benefit}.`);
     else bodyParts.push(`${productName} was built to solve exactly that.`);
     if (metrics.length > 0) bodyParts.push(`Real results: ${metrics.join(', ')}.`);
     if (desires[0]) bodyParts.push(`Because ${audience || 'you'} deserve ${desires[0]}.`);
   }
 
-  // CTA matches the hook energy
-  const ctaMap = {
-    curiosity: { es: `Descubre ${productName} ahora`, en: `Discover ${productName} now` },
-    number: { es: `Empieza tu transformación hoy`, en: `Start your transformation today` },
-    transformation: { es: `Da el primer paso`, en: `Take the first step` },
-    question: { es: `Pruébalo gratis`, en: `Try it free` },
-    authority: { es: `Únete a los que ya lo usan`, en: `Join those already using it` },
+  // CTA matches the hook energy — 2-3 variations per type
+  const ctaOptions = {
+    curiosity: { es: [`Descubre ${productName} ahora`, `Conoce ${productName} hoy`, `Explora ${productName}`], en: [`Discover ${productName} now`, `Explore ${productName} today`, `See ${productName} in action`] },
+    number: { es: [`Empieza tu transformación hoy`, `Comienza ahora`, `Activa tu cambio hoy`], en: [`Start your transformation today`, `Begin now`, `Activate your change today`] },
+    transformation: { es: [`Da el primer paso`, `Empieza tu cambio`, `Transforma tu rutina hoy`], en: [`Take the first step`, `Start your shift`, `Transform your routine today`] },
+    question: { es: [`Pruébalo gratis`, `Compruébalo tú mismo`, `Descúbrelo ahora`], en: [`Try it free`, `See for yourself`, `Find out now`] },
+    authority: { es: [`Únete a los que ya lo usan`, `Súmate al cambio`, `Sé parte del movimiento`], en: [`Join those already using it`, `Be part of the movement`, `Join the shift`] },
   };
-  const cta = ctaMap[bestHook.type]?.[lang] || ctaMap.curiosity[lang];
+  const ctaArr = ctaOptions[bestHook.type]?.[lang] || ctaOptions.curiosity[lang];
+  const cta = pick(ctaArr);
 
   return {
     headline,
@@ -1569,7 +1615,7 @@ function optimizeForPlatform(copy, platform, lang) {
   return { ...copy, headline: `${emoji} ${headline}`, body, cta, subheadline, _optimizedFor: platform };
 }
 
-function agenticGenerate(brandText, platform, tone, format, lang) {
+function agenticGenerate(brandText, platform, tone, format, lang, prevHookType) {
   try {
     // Agent 1: Brand Analyzer
     const brandAnalysis = analyzeBrand(brandText, lang);
@@ -1582,6 +1628,14 @@ function agenticGenerate(brandText, platform, tone, format, lang) {
 
     // Agent 4: Viral Score Evaluator (NEW)
     const scoredHooks = evaluateViralScore(hooks, platform);
+
+    // Penalize the last-used hook type to rotate winners
+    if (prevHookType) {
+      scoredHooks.forEach(h => {
+        if (h.type === prevHookType) h.score = Math.max(0, h.score - 20);
+      });
+      scoredHooks.sort((a, b) => b.score - a.score);
+    }
 
     // Agent 5: Creative Transformer (NEW)
     const bestHook = scoredHooks[0];
@@ -2085,6 +2139,7 @@ export default function ContentGenerator() {
   const [stats, setStats] = useState(() => loadStats());
   const [exportOpen, setExportOpen] = useState(false);
   const [showPipeline, setShowPipeline] = useState(false);
+  const [lastHookType, setLastHookType] = useState(null);
 
   // ── ONBOARDING TOUR STATE ──
   const [tourActive, setTourActive] = useState(true);
@@ -2163,7 +2218,8 @@ export default function ContentGenerator() {
       if (generationIdRef.current !== currentGenId) return;
 
       const tourBrandText = brand.trim().length >= BRAND_MIN ? brand : TOUR_TEXT[tourLang].sampleBrand;
-      let finalResult = agenticGenerate(tourBrandText, "instagram", "Profesional", "Producto", tourLang);
+      let finalResult = agenticGenerate(tourBrandText, "instagram", "Profesional", "Producto", tourLang, lastHookType);
+      if (finalResult?._allHooks?.[0]) setLastHookType(finalResult._allHooks[0].type);
       if (!finalResult) {
         finalResult = generateSmartContent(tourBrandText, "instagram", "Profesional", "Producto", nextCount, tourLang);
         finalResult._source = 'templates';
@@ -2206,7 +2262,7 @@ export default function ContentGenerator() {
         const variantResults = [];
         for (let v = 0; v < 2; v++) {
           const tourBrandV = (brand || TOUR_TEXT[tourLang].sampleBrand) + ` [v${v + 1}]`;
-          const agVar = agenticGenerate(tourBrandV, "instagram", "Profesional", "Producto", tourLang);
+          const agVar = agenticGenerate(tourBrandV, "instagram", "Profesional", "Producto", tourLang, lastHookType);
           if (agVar) { variantResults.push({ ...agVar, source: "agentic" }); continue; }
           const varResult = generateSmartContent(brand || TOUR_TEXT[tourLang].sampleBrand, "instagram", "Profesional", "Producto", generationCount + 100 + v * 37, tourLang);
           variantResults.push({ ...varResult, source: "template" });
@@ -2280,8 +2336,11 @@ export default function ContentGenerator() {
     // 3. Try Agentic Pipeline (local, always available — default when no API keys)
     let agenticResult = null;
     if (!claudeResult && !hfResult) {
-      agenticResult = agenticGenerate(brand, platform, tone, format, lang);
-      if (agenticResult) source = 'agentic';
+      agenticResult = agenticGenerate(brand, platform, tone, format, lang, lastHookType);
+      if (agenticResult) {
+        source = 'agentic';
+        if (agenticResult._allHooks?.[0]) setLastHookType(agenticResult._allHooks[0].type);
+      }
     }
 
     // 4. Fallback to smart templates (only if agentic somehow fails)
@@ -2408,7 +2467,7 @@ export default function ContentGenerator() {
       const hfVar = await generateWithHuggingFace(brand, platform, tone, format, lang, hfToken.trim() || null, null);
       if (hfVar) { variantResults.push({ ...hfVar, source: "huggingface" }); continue; }
       // Try agentic (with slight variation via extra text)
-      const agVar = agenticGenerate(brand + ` [v${v + 1}]`, platform, tone, format, lang);
+      const agVar = agenticGenerate(brand + ` [v${v + 1}]`, platform, tone, format, lang, lastHookType);
       if (agVar) { variantResults.push({ ...agVar, source: "agentic" }); continue; }
       // Fallback to templates
       const varResult = generateSmartContent(brand, platform, tone, format, generationCount + 100 + v * 37, lang);
@@ -2580,7 +2639,7 @@ export default function ContentGenerator() {
             </div>
           </div>
           <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.35)", letterSpacing: "0.03em" }}>
-            {s.headerSub} &middot; Claude API + HF + Agentic Pipeline + DALL-E 3
+            {s.headerSub} &middot; {hasApiKey ? 'Claude API + ' : ''}{hasHfToken ? 'HF + ' : ''}Agentic Pipeline + DALL-E 3
           </p>
         </div>
 
@@ -2615,70 +2674,6 @@ export default function ContentGenerator() {
 
           {/* PANEL IZQUIERDO — INPUTS */}
           <div>
-            {/* API KEY SECTION (collapsible) */}
-            <div style={{ marginBottom: 14 }}>
-              <button onClick={() => setApiKeyOpen(!apiKeyOpen)} style={{
-                background: "none", border: "none", cursor: "pointer", padding: 0,
-                display: "flex", alignItems: "center", gap: 6, marginBottom: apiKeyOpen ? 8 : 0,
-              }}>
-                <span style={{ fontSize: 10, color: apiKeyOpen ? accent : "rgba(255,255,255,0.3)", transition: "transform 0.2s", display: "inline-block", transform: apiKeyOpen ? "rotate(90deg)" : "rotate(0)" }}>&#9654;</span>
-                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: hasApiKey ? "#4ADE80" : "rgba(255,255,255,0.4)", fontFamily: "'DM Mono', monospace" }}>
-                  {s.apiKeyLabel} {hasApiKey ? "\u2713" : ""}
-                </span>
-              </button>
-              {apiKeyOpen && (
-                <div style={{ animation: "fadeUp 0.2s ease" }}>
-                  <input
-                    type="password"
-                    value={apiKey}
-                    onChange={e => handleApiKeyChange(e.target.value)}
-                    placeholder={s.apiKeyPlaceholder}
-                    style={{
-                      width: "100%", background: "rgba(255,255,255,0.04)",
-                      border: `1px solid ${hasApiKey ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.1)"}`,
-                      borderRadius: 8, padding: "8px 12px",
-                      color: "#F8F4E8", fontSize: 12,
-                      fontFamily: "'DM Mono', monospace",
-                    }}
-                  />
-                  <p style={{ margin: "4px 0 0", fontSize: 10, color: "rgba(255,255,255,0.25)" }}>{s.apiKeyHint}</p>
-                </div>
-              )}
-            </div>
-
-            {/* HF TOKEN SECTION (collapsible) */}
-            <div style={{ marginBottom: 14 }}>
-              <button onClick={() => setShowHfKey(!showHfKey)} style={{
-                background: "none", border: "none", cursor: "pointer", padding: 0,
-                display: "flex", alignItems: "center", gap: 6, marginBottom: showHfKey ? 8 : 0,
-              }}>
-                <span style={{ fontSize: 10, color: showHfKey ? "#F59E0B" : "rgba(255,255,255,0.3)", transition: "transform 0.2s", display: "inline-block", transform: showHfKey ? "rotate(90deg)" : "rotate(0)" }}>&#9654;</span>
-                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: hasHfToken ? "#F59E0B" : "rgba(255,255,255,0.4)", fontFamily: "'DM Mono', monospace" }}>
-                  {lang === 'en' ? 'HUGGING FACE TOKEN (Optional)' : 'TOKEN HUGGING FACE (Opcional)'} {hasHfToken ? "\u2713" : ""}
-                </span>
-              </button>
-              {showHfKey && (
-                <div style={{ animation: "fadeUp 0.2s ease" }}>
-                  <input
-                    type="password"
-                    value={hfToken}
-                    onChange={e => handleHfTokenChange(e.target.value)}
-                    placeholder={lang === 'en' ? 'hf_... (optional, free tier works without)' : 'hf_... (opcional, tier gratis funciona sin token)'}
-                    style={{
-                      width: "100%", background: "rgba(255,255,255,0.04)",
-                      border: `1px solid ${hasHfToken ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.1)"}`,
-                      borderRadius: 8, padding: "8px 12px",
-                      color: "#F8F4E8", fontSize: 12,
-                      fontFamily: "'DM Mono', monospace",
-                    }}
-                  />
-                  <p style={{ margin: "4px 0 0", fontSize: 10, color: "rgba(255,255,255,0.25)" }}>
-                    {lang === 'en' ? 'Mistral 7B via Hugging Face — free tier available' : 'Mistral 7B via Hugging Face — tier gratis disponible'}
-                  </p>
-                </div>
-              )}
-            </div>
-
             {/* Brand Input */}
             <div ref={brandRef} style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
@@ -2834,6 +2829,58 @@ export default function ContentGenerator() {
                 </button>
               </div>
             )}
+
+            {/* ADVANCED: Connect your own AI models (collapsed by default) */}
+            <details style={{ marginTop: 16, borderTop: '1px solid #334155', paddingTop: 12 }}>
+              <summary style={{ cursor: 'pointer', color: '#64748b', fontSize: 12, fontFamily: "'DM Mono', monospace", listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ fontSize: 10, transition: 'transform 0.2s', display: 'inline-block' }}>&#9654;</span>
+                {lang === 'es' ? '\u2699\uFE0F Avanzado: Conecta tus propios modelos de IA' : '\u2699\uFE0F Advanced: Connect your own AI models'}
+              </summary>
+              <div style={{ marginTop: 12 }}>
+                {/* Claude API Key */}
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: hasApiKey ? '#4ADE80' : 'rgba(255,255,255,0.4)', fontFamily: "'DM Mono', monospace", marginBottom: 6 }}>
+                    {s.apiKeyLabel} {hasApiKey ? '\u2713' : ''}
+                  </label>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={e => handleApiKeyChange(e.target.value)}
+                    placeholder={s.apiKeyPlaceholder}
+                    style={{
+                      width: '100%', background: 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${hasApiKey ? 'rgba(74,222,128,0.3)' : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius: 8, padding: '8px 12px',
+                      color: '#F8F4E8', fontSize: 12,
+                      fontFamily: "'DM Mono', monospace",
+                    }}
+                  />
+                  <p style={{ margin: '4px 0 0', fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>{s.apiKeyHint}</p>
+                </div>
+                {/* Hugging Face Token */}
+                <div>
+                  <label style={{ display: 'block', fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: hasHfToken ? '#F59E0B' : 'rgba(255,255,255,0.4)', fontFamily: "'DM Mono', monospace", marginBottom: 6 }}>
+                    {lang === 'en' ? 'HUGGING FACE TOKEN' : 'TOKEN HUGGING FACE'} {hasHfToken ? '\u2713' : ''}
+                  </label>
+                  <input
+                    type="password"
+                    value={hfToken}
+                    onChange={e => handleHfTokenChange(e.target.value)}
+                    placeholder={lang === 'en' ? 'hf_... (optional)' : 'hf_... (opcional)'}
+                    style={{
+                      width: '100%', background: 'rgba(255,255,255,0.04)',
+                      border: `1px solid ${hasHfToken ? 'rgba(245,158,11,0.3)' : 'rgba(255,255,255,0.1)'}`,
+                      borderRadius: 8, padding: '8px 12px',
+                      color: '#F8F4E8', fontSize: 12,
+                      fontFamily: "'DM Mono', monospace",
+                    }}
+                  />
+                  <p style={{ margin: '4px 0 0', fontSize: 10, color: 'rgba(255,255,255,0.25)' }}>
+                    {lang === 'en' ? 'Mistral 7B via Hugging Face' : 'Mistral 7B via Hugging Face'}
+                  </p>
+                </div>
+              </div>
+            </details>
           </div>
 
           {/* PANEL DERECHO — RESULTADO */}
