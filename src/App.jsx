@@ -1157,6 +1157,38 @@ Genera un JSON con exactamente estos campos:
   }
 }
 
+// ─── SERVER AI (Cloudflare Workers AI / HF server-side) ─────────────────────
+async function generateWithServerAI(brandText, platform, tone, format, lang) {
+  try {
+    const response = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ brandText, platform, tone, format, lang })
+    });
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    if (data.error) return null;
+
+    return {
+      headline: data.headline || '',
+      subheadline: data.subheadline || '',
+      body: data.body || '',
+      cta: data.cta || '',
+      hashtags: Array.isArray(data.hashtags) ? data.hashtags : [],
+      emoji_set: data.emoji_set || ['✨', '🚀', '💡'],
+      dalle_prompt: data.dalle_prompt || `Professional marketing visual for ${brandText}, modern design, high quality`,
+      color_palette: data.color_palette || ['#1a1a2e', '#16213e', '#0f3460'],
+      posting_time: data.posting_time || 'Optimal posting time varies by audience',
+      _source: data._source || 'server-ai',
+      _model: data._model || 'Unknown',
+    };
+  } catch {
+    return null;
+  }
+}
+
 // ─── CLAUDE API CALLER (simple fallback) ────────────────────────────────────
 async function generateWithClaude(apiKey, brandDesc, platform, tone, format, lang) {
   try {
@@ -2519,17 +2551,25 @@ export default function ContentGenerator() {
       if (claudeResult) source = 'claude';
     }
 
-    // 2. Try Hugging Face (if Claude failed or no API key)
-    let hfResult = null;
+    // 2. Try Server AI (Cloudflare Workers AI / HF server-side)
+    let serverResult = null;
     if (!claudeResult) {
+      serverResult = await generateWithServerAI(brand, platform, tone, format, lang);
+      if (generationIdRef.current !== currentGenId) return;
+      if (serverResult) source = serverResult._source || 'server-ai';
+    }
+
+    // 3. Try Hugging Face client-side (if server AI failed)
+    let hfResult = null;
+    if (!claudeResult && !serverResult) {
       hfResult = await generateWithHuggingFace(brand, platform, tone, format, lang, hfToken.trim() || null, setLoadingStep);
       if (generationIdRef.current !== currentGenId) return;
       if (hfResult) source = 'huggingface';
     }
 
-    // 3. Try Agentic Pipeline (local, always available — default when no API keys)
+    // 4. Try Agentic Pipeline (local, always available — default when no API keys)
     let agenticResult = null;
-    if (!claudeResult && !hfResult) {
+    if (!claudeResult && !serverResult && !hfResult) {
       agenticResult = agenticGenerate(brand, platform, tone, format, lang, lastHookType);
       if (agenticResult) {
         source = 'agentic';
@@ -2537,11 +2577,14 @@ export default function ContentGenerator() {
       }
     }
 
-    // 4. Fallback to smart templates (only if agentic somehow fails)
+    // 5. Fallback to smart templates (only if agentic somehow fails)
     let finalResult;
     if (claudeResult) {
       aiUsed = true;
       finalResult = claudeResult;
+    } else if (serverResult) {
+      aiUsed = true;
+      finalResult = serverResult;
     } else if (hfResult) {
       aiUsed = true;
       finalResult = hfResult;
@@ -2617,7 +2660,7 @@ export default function ContentGenerator() {
 
   const exportJSON = () => {
     if (!result) return;
-    const obj = { platform, tone, format, brand: brand.substring(0, 100), generatedWith: contentSource === 'claude' ? "Claude AI" : contentSource === 'huggingface' ? "HF Mistral 7B" : contentSource === 'agentic' ? "Agentic Pipeline" : "Smart Templates", ...result };
+    const obj = { platform, tone, format, brand: brand.substring(0, 100), generatedWith: contentSource === 'claude' ? "Claude AI" : contentSource === 'cloudflare-ai' ? "Cloudflare Llama 3.1" : contentSource === 'huggingface-server' ? "Server Mistral 7B" : contentSource === 'huggingface' ? "HF Mistral 7B" : contentSource === 'agentic' ? "Agentic Pipeline" : "Smart Templates", ...result };
     navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
     showToast(lang === "es" ? "JSON copiado al portapapeles" : "JSON copied to clipboard");
     setExportOpen(false);
@@ -2640,7 +2683,7 @@ export default function ContentGenerator() {
       `**DALL-E Prompt:** ${result.dalle_prompt}`,
       "",
       `---`,
-      `*Generated with ContentStudio ${contentSource === 'claude' ? "(Claude AI)" : contentSource === 'huggingface' ? "(HF Mistral)" : contentSource === 'agentic' ? "(Agentic Pipeline)" : "(Templates)"}*`,
+      `*Generated with ContentStudio ${contentSource === 'claude' ? "(Claude AI)" : contentSource === 'cloudflare-ai' ? "(Cloudflare Llama 3.1)" : contentSource === 'huggingface-server' ? "(Server Mistral 7B)" : contentSource === 'huggingface' ? "(HF Mistral)" : contentSource === 'agentic' ? "(Agentic Pipeline)" : "(Templates)"}*`,
     ].join("\n");
     navigator.clipboard.writeText(md);
     showToast(lang === "es" ? "Markdown copiado al portapapeles" : "Markdown copied to clipboard");
@@ -2657,7 +2700,10 @@ export default function ContentGenerator() {
         const claudeVar = await generateWithClaude(apiKey.trim(), brand, platform, tone, format, lang);
         if (claudeVar) { variantResults.push({ ...claudeVar, source: "claude" }); continue; }
       }
-      // Try HF second
+      // Try Server AI second
+      const serverVar = await generateWithServerAI(brand, platform, tone, format, lang);
+      if (serverVar) { variantResults.push({ ...serverVar, source: serverVar._source || "server-ai" }); continue; }
+      // Try HF client-side third
       const hfVar = await generateWithHuggingFace(brand, platform, tone, format, lang, hfToken.trim() || null, null);
       if (hfVar) { variantResults.push({ ...hfVar, source: "huggingface" }); continue; }
       // Try agentic (with slight variation via extra text)
@@ -2833,7 +2879,7 @@ export default function ContentGenerator() {
             </div>
           </div>
           <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.35)", letterSpacing: "0.03em" }}>
-            {s.headerSub} &middot; {hasApiKey ? 'Claude API + ' : ''}{hasHfToken ? 'HF + ' : ''}Agentic Pipeline + DALL-E 3
+            {s.headerSub} &middot; {hasApiKey ? 'Claude API + ' : ''}Cloudflare AI + {hasHfToken ? 'HF + ' : ''}Agentic Pipeline + DALL-E 3
           </p>
         </div>
 
@@ -3128,25 +3174,35 @@ export default function ContentGenerator() {
                     padding: "3px 10px", borderRadius: 4,
                     fontFamily: "'DM Mono', monospace",
                     background: contentSource === 'claude' ? "rgba(74,222,128,0.12)"
+                      : contentSource === 'cloudflare-ai' ? "rgba(249,115,22,0.12)"
+                      : contentSource === 'huggingface-server' ? "rgba(249,115,22,0.12)"
                       : contentSource === 'huggingface' ? "rgba(245,158,11,0.12)"
                       : contentSource === 'agentic' ? "rgba(245,158,11,0.12)"
                       : "rgba(255,255,255,0.05)",
                     color: contentSource === 'claude' ? "#4ADE80"
+                      : contentSource === 'cloudflare-ai' ? "#F97316"
+                      : contentSource === 'huggingface-server' ? "#F97316"
                       : contentSource === 'huggingface' ? "#F59E0B"
                       : contentSource === 'agentic' ? "#F59E0B"
                       : "#6B7280",
                     border: `1px solid ${contentSource === 'claude' ? "rgba(74,222,128,0.25)"
+                      : contentSource === 'cloudflare-ai' ? "rgba(249,115,22,0.25)"
+                      : contentSource === 'huggingface-server' ? "rgba(249,115,22,0.25)"
                       : contentSource === 'huggingface' ? "rgba(245,158,11,0.25)"
                       : contentSource === 'agentic' ? "rgba(245,158,11,0.25)"
                       : "rgba(255,255,255,0.08)"}`,
                   }}>
                     {contentSource === 'claude'
                       ? (result?._toolUse ? s.aiToolUseBadge : s.aiBadge)
-                      : contentSource === 'huggingface'
-                        ? (lang === 'en' ? 'HF Model' : 'Modelo HF')
-                        : contentSource === 'agentic'
-                          ? s.agenticBadge
-                          : s.templateBadge}
+                      : contentSource === 'cloudflare-ai'
+                        ? 'Llama 3.1'
+                        : contentSource === 'huggingface-server'
+                          ? 'Mistral 7B'
+                          : contentSource === 'huggingface'
+                            ? (lang === 'en' ? 'HF Model' : 'Modelo HF')
+                            : contentSource === 'agentic'
+                              ? s.agenticBadge
+                              : s.templateBadge}
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
@@ -3382,7 +3438,7 @@ export default function ContentGenerator() {
                 {variants && variants.length > 0 && (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
                     {variants.map((v, i) => (
-                      <div key={i} onClick={() => { setFavoriteVariant(i); setResult(v); setUsedAI(v.source === "claude" || v.source === "huggingface"); setContentSource(v.source || "templates"); }} style={{
+                      <div key={i} onClick={() => { setFavoriteVariant(i); setResult(v); setUsedAI(v.source === "claude" || v.source === "huggingface" || v.source === "cloudflare-ai" || v.source === "huggingface-server"); setContentSource(v.source || "templates"); }} style={{
                         padding: "10px 12px",
                         background: favoriteVariant === i ? "rgba(232,197,71,0.08)" : "rgba(255,255,255,0.03)",
                         border: `1px solid ${favoriteVariant === i ? accent : "rgba(255,255,255,0.07)"}`,
@@ -3453,7 +3509,7 @@ export default function ContentGenerator() {
                         </div>
                       </div>
                       {h.result?._source === 'agentic' && <span style={{ fontSize: 8, color: "#F59E0B", fontFamily: "'DM Mono', monospace", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 3, padding: "1px 4px" }}>{'\ud83e\udd16'}</span>}
-                      {h.usedAI && <span style={{ fontSize: 8, color: h.result?._source === 'huggingface' ? "#F59E0B" : "#4ADE80", fontFamily: "'DM Mono', monospace", border: `1px solid ${h.result?._source === 'huggingface' ? "rgba(245,158,11,0.25)" : "rgba(74,222,128,0.25)"}`, borderRadius: 3, padding: "1px 4px" }}>{h.result?._source === 'huggingface' ? 'HF' : 'AI'}</span>}
+                      {h.usedAI && <span style={{ fontSize: 8, color: h.result?._source === 'huggingface' || h.result?._source === 'huggingface-server' ? "#F59E0B" : h.result?._source === 'cloudflare-ai' ? "#F97316" : "#4ADE80", fontFamily: "'DM Mono', monospace", border: `1px solid ${h.result?._source === 'huggingface' || h.result?._source === 'huggingface-server' ? "rgba(245,158,11,0.25)" : h.result?._source === 'cloudflare-ai' ? "rgba(249,115,22,0.25)" : "rgba(74,222,128,0.25)"}`, borderRadius: 3, padding: "1px 4px" }}>{h.result?._source === 'cloudflare-ai' ? 'CF' : h.result?._source === 'huggingface-server' ? 'SRV' : h.result?._source === 'huggingface' ? 'HF' : 'AI'}</span>}
                     </button>
                   );
                 })}
@@ -3479,7 +3535,7 @@ export default function ContentGenerator() {
         {/* FOOTER */}
         <div style={{ marginTop: 24, textAlign: "center" }}>
           <p style={{ fontSize: 10, color: "rgba(255,255,255,0.12)", fontFamily: "'DM Mono', monospace", letterSpacing: "0.1em" }}>
-            CLAUDE API · HUGGING FACE · AGENTIC PIPELINE · DALL-E 3 · MAKE.COM READY
+            CLAUDE API · CLOUDFLARE AI · HUGGING FACE · AGENTIC PIPELINE · DALL-E 3 · MAKE.COM READY
           </p>
         </div>
       </div>
