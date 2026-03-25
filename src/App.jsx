@@ -1063,6 +1063,94 @@ After all tools return data, synthesize the results into a final JSON with these
   }
 }
 
+// ─── HUGGING FACE INFERENCE API ──────────────────────────────────────────────
+async function generateWithHuggingFace(brandText, platform, tone, format, lang, hfToken, setLoadingMsg) {
+  const HF_API = 'https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.3';
+
+  const systemPrompt = lang === 'en'
+    ? `You are a senior social media copywriter. Generate marketing content for ${platform}.`
+    : `Eres un copywriter senior de redes sociales. Genera contenido de marketing para ${platform}.`;
+
+  const userPrompt = lang === 'en'
+    ? `Brand: ${brandText}
+Platform: ${platform}
+Tone: ${tone}
+Format: ${format}
+
+Generate a JSON with exactly these fields:
+{"headline":"max 10 words","subheadline":"max 15 words","body":"2-3 sentences about the brand","cta":"max 5 words call to action","hashtags":["5 relevant hashtags"]}`
+    : `Marca: ${brandText}
+Plataforma: ${platform}
+Tono: ${tone}
+Formato: ${format}
+
+Genera un JSON con exactamente estos campos:
+{"headline":"max 10 palabras","subheadline":"max 15 palabras","body":"2-3 oraciones sobre la marca","cta":"max 5 palabras call to action","hashtags":["5 hashtags relevantes"]}`;
+
+  const doFetch = () => fetch(HF_API, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(hfToken ? { 'Authorization': `Bearer ${hfToken}` } : {}),
+    },
+    body: JSON.stringify({
+      inputs: `<s>[INST] ${systemPrompt}\n\n${userPrompt} [/INST]`,
+      parameters: {
+        max_new_tokens: 500,
+        temperature: 0.7,
+        return_full_text: false,
+      },
+    }),
+  });
+
+  try {
+    let response = await doFetch();
+
+    // Handle 503 — model loading (cold start)
+    if (response.status === 503) {
+      try {
+        const body = await response.json();
+        if (body.estimated_time && setLoadingMsg) {
+          setLoadingMsg(lang === 'en'
+            ? `Model loading (~${Math.ceil(body.estimated_time)}s)...`
+            : `Cargando modelo (~${Math.ceil(body.estimated_time)}s)...`);
+          await new Promise(r => setTimeout(r, body.estimated_time * 1000 + 1000));
+          response = await doFetch();
+        }
+      } catch {
+        return null;
+      }
+    }
+
+    if (!response.ok) return null;
+
+    const data = await response.json();
+    const text = data[0]?.generated_text || '';
+
+    // Try to extract JSON from response
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        headline: parsed.headline || '',
+        subheadline: parsed.subheadline || '',
+        body: parsed.body || '',
+        cta: parsed.cta || '',
+        hashtags: Array.isArray(parsed.hashtags) ? parsed.hashtags : [],
+        emoji_set: parsed.emoji_set || ['✨', '🚀', '💡'],
+        dalle_prompt: parsed.dalle_prompt || `Professional marketing visual for "${brandText}" — modern, clean design for ${platform} social media. Commercial photography quality, 8K resolution.`,
+        color_palette: parsed.color_palette || ['#6366F1', '#F59E0B', '#1A1A2E'],
+        posting_time: parsed.posting_time || (lang === 'en' ? 'Check platform analytics for optimal timing.' : 'Consulta las analíticas de la plataforma para el horario óptimo.'),
+        _source: 'huggingface',
+      };
+    }
+    return null;
+  } catch (e) {
+    console.warn('HF generation failed:', e);
+    return null;
+  }
+}
+
 // ─── CLAUDE API CALLER (simple fallback) ────────────────────────────────────
 async function generateWithClaude(apiKey, brandDesc, platform, tone, format, lang) {
   try {
@@ -1525,7 +1613,10 @@ export default function ContentGenerator() {
   // New state
   const [apiKey, setApiKey] = useState(() => localStorage.getItem("cs_apikey") || "");
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
+  const [hfToken, setHfToken] = useState(() => localStorage.getItem("cs_hftoken") || "");
+  const [showHfKey, setShowHfKey] = useState(false);
   const [usedAI, setUsedAI] = useState(false);
+  const [contentSource, setContentSource] = useState("templates"); // 'claude' | 'huggingface' | 'templates'
   const [history, setHistory] = useState(() => loadHistory());
   const [showHistory, setShowHistory] = useState(false);
   const [variants, setVariants] = useState(null);
@@ -1690,9 +1781,12 @@ export default function ContentGenerator() {
     }
     if (generationIdRef.current !== currentGenId) return;
 
-    // Try Claude Tool Use first, then simple Claude, then templates
+    // Try Claude Tool Use first, then simple Claude, then HF, then templates
     let claudeResult = null;
     let toolUseMode = false;
+    let source = 'templates';
+
+    // 1. Try Claude (if API key provided)
     if (apiKey.trim()) {
       claudeResult = await generateWithToolUse(apiKey.trim(), brand, platform, tone, format, lang);
       if (generationIdRef.current !== currentGenId) return;
@@ -1702,18 +1796,34 @@ export default function ContentGenerator() {
         claudeResult = await generateWithClaude(apiKey.trim(), brand, platform, tone, format, lang);
         if (generationIdRef.current !== currentGenId) return;
       }
+      if (claudeResult) source = 'claude';
     }
 
+    // 2. Try Hugging Face (if Claude failed or no API key)
+    let hfResult = null;
+    if (!claudeResult) {
+      hfResult = await generateWithHuggingFace(brand, platform, tone, format, lang, hfToken.trim() || null, setLoadingStep);
+      if (generationIdRef.current !== currentGenId) return;
+      if (hfResult) source = 'huggingface';
+    }
+
+    // 3. Fallback to smart templates
     let finalResult;
     if (claudeResult) {
       aiUsed = true;
       finalResult = claudeResult;
+    } else if (hfResult) {
+      aiUsed = true;
+      finalResult = hfResult;
     } else {
       finalResult = generateSmartContent(brand, platform, tone, format, nextCount, lang);
+      source = 'templates';
     }
     finalResult._toolUse = toolUseMode;
+    finalResult._source = source;
 
     setUsedAI(aiUsed);
+    setContentSource(source);
     setResult(finalResult);
     setActiveTab("copy");
     setLoading(false);
@@ -1774,7 +1884,7 @@ export default function ContentGenerator() {
 
   const exportJSON = () => {
     if (!result) return;
-    const obj = { platform, tone, format, brand: brand.substring(0, 100), generatedWith: usedAI ? "Claude AI" : "Smart Templates", ...result };
+    const obj = { platform, tone, format, brand: brand.substring(0, 100), generatedWith: contentSource === 'claude' ? "Claude AI" : contentSource === 'huggingface' ? "HF Mistral 7B" : "Smart Templates", ...result };
     navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
     showToast(lang === "es" ? "JSON copiado al portapapeles" : "JSON copied to clipboard");
     setExportOpen(false);
@@ -1797,7 +1907,7 @@ export default function ContentGenerator() {
       `**DALL-E Prompt:** ${result.dalle_prompt}`,
       "",
       `---`,
-      `*Generated with ContentStudio ${usedAI ? "(AI)" : "(Templates)"}*`,
+      `*Generated with ContentStudio ${contentSource === 'claude' ? "(Claude AI)" : contentSource === 'huggingface' ? "(HF Mistral)" : "(Templates)"}*`,
     ].join("\n");
     navigator.clipboard.writeText(md);
     showToast(lang === "es" ? "Markdown copiado al portapapeles" : "Markdown copied to clipboard");
@@ -1809,10 +1919,15 @@ export default function ContentGenerator() {
     const variantResults = [];
     // Generate 2 variants using different seeds
     for (let v = 0; v < 2; v++) {
+      // Try Claude first
       if (apiKey.trim()) {
         const claudeVar = await generateWithClaude(apiKey.trim(), brand, platform, tone, format, lang);
-        if (claudeVar) { variantResults.push({ ...claudeVar, source: "ai" }); continue; }
+        if (claudeVar) { variantResults.push({ ...claudeVar, source: "claude" }); continue; }
       }
+      // Try HF second
+      const hfVar = await generateWithHuggingFace(brand, platform, tone, format, lang, hfToken.trim() || null, null);
+      if (hfVar) { variantResults.push({ ...hfVar, source: "huggingface" }); continue; }
+      // Fallback to templates
       const varResult = generateSmartContent(brand, platform, tone, format, generationCount + 100 + v * 37, lang);
       variantResults.push({ ...varResult, source: "template" });
     }
@@ -1843,7 +1958,13 @@ export default function ContentGenerator() {
     localStorage.setItem("cs_apikey", val);
   };
 
+  const handleHfTokenChange = (val) => {
+    setHfToken(val);
+    localStorage.setItem("cs_hftoken", val);
+  };
+
   const hasApiKey = apiKey.trim().length > 0;
+  const hasHfToken = hfToken.trim().length > 0;
 
   const selectedPlatform = PLATFORMS.find(p => p.id === platform);
   const accent = "#E8C547";
@@ -1903,16 +2024,43 @@ export default function ContentGenerator() {
               borderRadius: 4, padding: "3px 8px", letterSpacing: "0.1em",
             }}>AI-POWERED</span>
 
-            {/* MODE INDICATOR */}
+            {/* MODE INDICATORS */}
+            {hasApiKey && (
+              <span style={{
+                fontSize: 9, fontFamily: "'DM Mono', monospace",
+                color: "#8B5CF6",
+                background: "rgba(139,92,246,0.1)",
+                border: "1px solid rgba(139,92,246,0.3)",
+                borderRadius: 4, padding: "3px 8px", letterSpacing: "0.08em",
+              }}>Claude</span>
+            )}
+            {hasHfToken && (
+              <span style={{
+                fontSize: 9, fontFamily: "'DM Mono', monospace",
+                color: "#F59E0B",
+                background: "rgba(245,158,11,0.1)",
+                border: "1px solid rgba(245,158,11,0.3)",
+                borderRadius: 4, padding: "3px 8px", letterSpacing: "0.08em",
+              }}>Mistral 7B</span>
+            )}
+            {!hasApiKey && !hasHfToken && (
+              <span style={{
+                fontSize: 9, fontFamily: "'DM Mono', monospace",
+                color: "#6B7280",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.08)",
+                borderRadius: 4, padding: "3px 8px", letterSpacing: "0.08em",
+              }}>{lang === 'en' ? 'Templates Mode' : 'Modo Plantillas'}</span>
+            )}
             <span style={{
               fontSize: 9, fontFamily: "'DM Mono', monospace",
-              color: hasApiKey ? "#4ADE80" : "#6B7280",
-              background: hasApiKey ? "rgba(74,222,128,0.1)" : "rgba(255,255,255,0.05)",
-              border: `1px solid ${hasApiKey ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.08)"}`,
+              color: hasApiKey ? "#4ADE80" : hasHfToken ? "#F59E0B" : "#6B7280",
+              background: hasApiKey ? "rgba(74,222,128,0.1)" : hasHfToken ? "rgba(245,158,11,0.1)" : "rgba(255,255,255,0.05)",
+              border: `1px solid ${hasApiKey ? "rgba(74,222,128,0.3)" : hasHfToken ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.08)"}`,
               borderRadius: 4, padding: "3px 8px", letterSpacing: "0.08em",
               cursor: "pointer",
             }} onClick={() => setShowStats(!showStats)}>
-              {hasApiKey ? s.aiMode : s.templateMode} {stats.total > 0 ? `\u00b7 ${stats.total}` : ""}
+              {hasApiKey ? s.aiMode : hasHfToken ? 'HF Mode' : s.templateMode} {stats.total > 0 ? `\u00b7 ${stats.total}` : ""}
             </span>
 
             {/* LANGUAGE TOGGLE */}
@@ -1949,7 +2097,7 @@ export default function ContentGenerator() {
             </div>
           </div>
           <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.35)", letterSpacing: "0.03em" }}>
-            {s.headerSub} &middot; Claude API + DALL-E 3
+            {s.headerSub} &middot; Claude API + HF Inference + DALL-E 3
           </p>
         </div>
 
@@ -2011,6 +2159,39 @@ export default function ContentGenerator() {
                     }}
                   />
                   <p style={{ margin: "4px 0 0", fontSize: 10, color: "rgba(255,255,255,0.25)" }}>{s.apiKeyHint}</p>
+                </div>
+              )}
+            </div>
+
+            {/* HF TOKEN SECTION (collapsible) */}
+            <div style={{ marginBottom: 14 }}>
+              <button onClick={() => setShowHfKey(!showHfKey)} style={{
+                background: "none", border: "none", cursor: "pointer", padding: 0,
+                display: "flex", alignItems: "center", gap: 6, marginBottom: showHfKey ? 8 : 0,
+              }}>
+                <span style={{ fontSize: 10, color: showHfKey ? "#F59E0B" : "rgba(255,255,255,0.3)", transition: "transform 0.2s", display: "inline-block", transform: showHfKey ? "rotate(90deg)" : "rotate(0)" }}>&#9654;</span>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: hasHfToken ? "#F59E0B" : "rgba(255,255,255,0.4)", fontFamily: "'DM Mono', monospace" }}>
+                  {lang === 'en' ? 'HUGGING FACE TOKEN (Optional)' : 'TOKEN HUGGING FACE (Opcional)'} {hasHfToken ? "\u2713" : ""}
+                </span>
+              </button>
+              {showHfKey && (
+                <div style={{ animation: "fadeUp 0.2s ease" }}>
+                  <input
+                    type="password"
+                    value={hfToken}
+                    onChange={e => handleHfTokenChange(e.target.value)}
+                    placeholder={lang === 'en' ? 'hf_... (optional, free tier works without)' : 'hf_... (opcional, tier gratis funciona sin token)'}
+                    style={{
+                      width: "100%", background: "rgba(255,255,255,0.04)",
+                      border: `1px solid ${hasHfToken ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.1)"}`,
+                      borderRadius: 8, padding: "8px 12px",
+                      color: "#F8F4E8", fontSize: 12,
+                      fontFamily: "'DM Mono', monospace",
+                    }}
+                  />
+                  <p style={{ margin: "4px 0 0", fontSize: 10, color: "rgba(255,255,255,0.25)" }}>
+                    {lang === 'en' ? 'Mistral 7B via Hugging Face — free tier available' : 'Mistral 7B via Hugging Face — tier gratis disponible'}
+                  </p>
                 </div>
               )}
             </div>
@@ -2216,17 +2397,27 @@ export default function ContentGenerator() {
             {/* Tabs de contenido */}
             {result && (
               <div ref={resultCopyRef} style={{ animation: "fadeUp 0.4s ease" }}>
-                {/* AI / Template badge */}
+                {/* AI / HF / Template badge */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
                   <span style={{
                     fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
                     padding: "3px 10px", borderRadius: 4,
                     fontFamily: "'DM Mono', monospace",
-                    background: usedAI ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.05)",
-                    color: usedAI ? "#4ADE80" : "#6B7280",
-                    border: `1px solid ${usedAI ? "rgba(74,222,128,0.25)" : "rgba(255,255,255,0.08)"}`,
+                    background: contentSource === 'claude' ? "rgba(74,222,128,0.12)"
+                      : contentSource === 'huggingface' ? "rgba(245,158,11,0.12)"
+                      : "rgba(255,255,255,0.05)",
+                    color: contentSource === 'claude' ? "#4ADE80"
+                      : contentSource === 'huggingface' ? "#F59E0B"
+                      : "#6B7280",
+                    border: `1px solid ${contentSource === 'claude' ? "rgba(74,222,128,0.25)"
+                      : contentSource === 'huggingface' ? "rgba(245,158,11,0.25)"
+                      : "rgba(255,255,255,0.08)"}`,
                   }}>
-                    {usedAI ? (result?._toolUse ? s.aiToolUseBadge : s.aiBadge) : s.templateBadge}
+                    {contentSource === 'claude'
+                      ? (result?._toolUse ? s.aiToolUseBadge : s.aiBadge)
+                      : contentSource === 'huggingface'
+                        ? (lang === 'en' ? 'HF Model' : 'Modelo HF')
+                        : s.templateBadge}
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
@@ -2396,7 +2587,7 @@ export default function ContentGenerator() {
                 {variants && variants.length > 0 && (
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
                     {variants.map((v, i) => (
-                      <div key={i} onClick={() => { setFavoriteVariant(i); setResult(v); setUsedAI(v.source === "ai"); }} style={{
+                      <div key={i} onClick={() => { setFavoriteVariant(i); setResult(v); setUsedAI(v.source === "claude" || v.source === "huggingface"); setContentSource(v.source || "templates"); }} style={{
                         padding: "10px 12px",
                         background: favoriteVariant === i ? "rgba(232,197,71,0.08)" : "rgba(255,255,255,0.03)",
                         border: `1px solid ${favoriteVariant === i ? accent : "rgba(255,255,255,0.07)"}`,
@@ -2466,7 +2657,7 @@ export default function ContentGenerator() {
                           {h.tone} &middot; {new Date(h.timestamp).toLocaleDateString()}
                         </div>
                       </div>
-                      {h.usedAI && <span style={{ fontSize: 8, color: "#4ADE80", fontFamily: "'DM Mono', monospace", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 3, padding: "1px 4px" }}>AI</span>}
+                      {h.usedAI && <span style={{ fontSize: 8, color: h.result?._source === 'huggingface' ? "#F59E0B" : "#4ADE80", fontFamily: "'DM Mono', monospace", border: `1px solid ${h.result?._source === 'huggingface' ? "rgba(245,158,11,0.25)" : "rgba(74,222,128,0.25)"}`, borderRadius: 3, padding: "1px 4px" }}>{h.result?._source === 'huggingface' ? 'HF' : 'AI'}</span>}
                     </button>
                   );
                 })}
@@ -2492,7 +2683,7 @@ export default function ContentGenerator() {
         {/* FOOTER */}
         <div style={{ marginTop: 24, textAlign: "center" }}>
           <p style={{ fontSize: 10, color: "rgba(255,255,255,0.12)", fontFamily: "'DM Mono', monospace", letterSpacing: "0.1em" }}>
-            CLAUDE API · DALL-E 3 · MAKE.COM INTEGRATION READY
+            CLAUDE API · HUGGING FACE · DALL-E 3 · MAKE.COM INTEGRATION READY
           </p>
         </div>
       </div>
