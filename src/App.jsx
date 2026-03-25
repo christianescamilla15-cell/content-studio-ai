@@ -1637,8 +1637,8 @@ function optimizeForPlatform(copy, platform, lang) {
   const limits = { 'twitter/x': { headline: 60, body: 200 }, twitter: { headline: 60, body: 200 }, instagram: { headline: 80, body: 300 }, linkedin: { headline: 100, body: 400 }, facebook: { headline: 80, body: 350 } };
   const limit = limits[p] || limits.instagram;
 
-  if (headline.length > limit.headline) headline = headline.slice(0, limit.headline - 3) + '...';
-  if (body.length > limit.body) body = body.slice(0, limit.body - 3) + '...';
+  if (headline.length > limit.headline) headline = enforceMaxLength(headline, limit.headline - 3) + '...';
+  if (body.length > limit.body) body = enforceMaxLength(body, limit.body - 3) + '...';
 
   const emojis = { instagram: ['\u2728','\ud83d\ude80','\ud83d\udca1','\ud83c\udfaf','\u2b50'], twitter: ['\ud83d\udd25','\ud83d\udcaa','\ud83d\udcca','\ud83c\udfaf','\u26a1'], linkedin: ['\ud83d\udcc8','\ud83d\udcbc','\ud83c\udfc6','\ud83d\udd11','\ud83d\udca1'], facebook: ['\u2764\ufe0f','\ud83d\ude4c','\u2705','\ud83c\udf89','\ud83d\udc47'] };
   const platformEmojis = emojis[p] || emojis.instagram;
@@ -1699,53 +1699,216 @@ function deepParseBrand(text, lang) {
   };
 }
 
+// ─── GRAMMAR CORRECTION + NATURAL LANGUAGE LAYER ────────────────────────────
+// Runs AFTER headline/body/CTA are generated and fixes common grammar issues.
+
+// Helper: convert Spanish conjugated verb to infinitive form
+function cleanInfinitive(text) {
+  if (!text) return '';
+  return text
+    .replace(/^reduce\b/i, 'reducir')
+    .replace(/^mejora\b/i, 'mejorar')
+    .replace(/^aumenta\b/i, 'aumentar')
+    .replace(/^disminuye\b/i, 'disminuir')
+    .replace(/^elimina\b/i, 'eliminar')
+    .replace(/^genera\b/i, 'generar')
+    .replace(/^crea\b/i, 'crear')
+    .replace(/^obtiene\b/i, 'obtener')
+    .replace(/^logra\b/i, 'lograr')
+    .replace(/^alcanza\b/i, 'alcanzar')
+    .replace(/^transforma\b/i, 'transformar')
+    .replace(/^optimiza\b/i, 'optimizar')
+    .replace(/^automatiza\b/i, 'automatizar')
+    .replace(/^gestiona\b/i, 'gestionar')
+    .replace(/^analiza\b/i, 'analizar')
+    .replace(/^detecta\b/i, 'detectar')
+    .replace(/^procesa\b/i, 'procesar')
+    .replace(/^conecta\b/i, 'conectar');
+}
+
+// Helper: enforce max length with clean word-boundary truncation
+function enforceMaxLength(text, maxLen) {
+  if (!text || text.length <= maxLen) return text;
+  const truncated = text.slice(0, maxLen);
+  const lastSpace = truncated.lastIndexOf(' ');
+  if (lastSpace > maxLen * 0.6) {
+    return truncated.slice(0, lastSpace);
+  }
+  return truncated;
+}
+
+// Main grammar corrector — fixes broken grammar in generated text
+function correctGrammar(text, lang) {
+  if (!text || text.length < 3) return text;
+  let fixed = text;
+
+  if (lang === 'es') {
+    // "para reduce" -> "para reducir" (infinitive after para)
+    fixed = fixed.replace(/\bpara\s+(reduce|mejora|aumenta|disminuye|elimina|genera|crea|obtiene|logra|alcanza|transforma|optimiza|automatiza|gestiona|analiza|detecta|procesa|conecta)/gi, (match, verb) => {
+      const infinitives = {
+        'reduce': 'reducir', 'mejora': 'mejorar', 'aumenta': 'aumentar', 'disminuye': 'disminuir',
+        'elimina': 'eliminar', 'genera': 'generar', 'crea': 'crear', 'obtiene': 'obtener',
+        'logra': 'lograr', 'alcanza': 'alcanzar', 'transforma': 'transformar', 'optimiza': 'optimizar',
+        'automatiza': 'automatizar', 'gestiona': 'gestionar', 'analiza': 'analizar',
+        'detecta': 'detectar', 'procesa': 'procesar', 'conecta': 'conectar',
+      };
+      return `para ${infinitives[verb.toLowerCase()] || verb}`;
+    });
+
+    // "que reducir" -> "que reduce" (conjugated after que)
+    fixed = fixed.replace(/\bque\s+(reducir|mejorar|aumentar|disminuir|eliminar|generar|crear|obtener|lograr|transformar|optimizar|automatizar|gestionar|analizar|detectar|procesar|conectar)/gi, (match, verb) => {
+      const conjugated = {
+        'reducir': 'reduce', 'mejorar': 'mejora', 'aumentar': 'aumenta', 'disminuir': 'disminuye',
+        'eliminar': 'elimina', 'generar': 'genera', 'crear': 'crea', 'obtener': 'obtiene',
+        'lograr': 'logra', 'transformar': 'transforma', 'optimizar': 'optimiza',
+        'automatizar': 'automatiza', 'gestionar': 'gestiona', 'analizar': 'analiza',
+        'detectar': 'detecta', 'procesar': 'procesa', 'conectar': 'conecta',
+      };
+      return `que ${conjugated[verb.toLowerCase()] || verb}`;
+    });
+
+    // Fix repeated fragments: "en 10 minutos en 10" -> "en 10 minutos"
+    fixed = fixed.replace(/(\ben\s+\d+\s+\w+)\s+en\s+\d+/gi, '$1');
+
+    // Fix "al dia al dia" duplicates
+    fixed = fixed.replace(/(\bal\s+día)\s+al\s+día/gi, '$1');
+
+    // Capitalize first letter
+    fixed = fixed.charAt(0).toUpperCase() + fixed.slice(1);
+
+    // Remove trailing fragments (sentences cut mid-word at a preposition/article)
+    if (fixed.length > 10 && !/[.!?…]$/.test(fixed)) {
+      const lastSpace = fixed.lastIndexOf(' ');
+      if (lastSpace > 0) {
+        const lastWord = fixed.slice(lastSpace + 1);
+        const truncationWords = ['de', 'del', 'en', 'con', 'para', 'por', 'a', 'al', 'el', 'la', 'los', 'las', 'un', 'una', 'y', 'o', 'que', 'se'];
+        if (truncationWords.includes(lastWord.toLowerCase())) {
+          fixed = fixed.slice(0, lastSpace).trim();
+        }
+      }
+    }
+
+    // Fix double spaces
+    fixed = fixed.replace(/\s{2,}/g, ' ').trim();
+
+  } else {
+    // English grammar fixes
+
+    // "for reduces" -> "to reduce"
+    fixed = fixed.replace(/\bfor\s+(reduces|improves|increases|eliminates|generates|creates|transforms|optimizes|automates|analyzes|detects)/gi, (match, verb) => {
+      const base = verb.toLowerCase().replace(/es$/, 'e').replace(/s$/, '');
+      return `to ${base}`;
+    });
+
+    // Fix repeated phrases: "in 10 minutes in 10" -> "in 10 minutes"
+    fixed = fixed.replace(/(\bin\s+\d+\s+\w+)\s+in\s+\d+/gi, '$1');
+
+    // Capitalize
+    fixed = fixed.charAt(0).toUpperCase() + fixed.slice(1);
+
+    // Remove trailing prepositions
+    const lastSpace = fixed.lastIndexOf(' ');
+    if (lastSpace > 0) {
+      const lastWord = fixed.slice(lastSpace + 1).toLowerCase();
+      const truncWords = ['in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'the', 'a', 'an', 'and', 'or', 'that'];
+      if (truncWords.includes(lastWord)) {
+        fixed = fixed.slice(0, lastSpace).trim();
+      }
+    }
+
+    fixed = fixed.replace(/\s{2,}/g, ' ').trim();
+  }
+
+  return fixed;
+}
+
 // ─── RELEVANT HEADLINE GENERATOR ────────────────────────────────────────────
 // Every headline MUST contain words from the user's input.
+// All templates are grammatically correct by construction.
 function generateRelevantHeadline(brand, tone, platform, lang) {
   const { productName, coreBenefit, audience, metrics, adjectives } = brand;
   const shortProduct = productName.split(' ').slice(0, 4).join(' ');
   const pool = [];
 
-  if (coreBenefit && metrics.length > 0) {
-    pool.push(
-      lang === 'es' ? `${shortProduct}: ${coreBenefit}` : `${shortProduct}: ${coreBenefit}`,
-      lang === 'es' ? `${metrics[0]} para ${coreBenefit.split(' ').slice(0, 5).join(' ')}` : `${metrics[0]} to ${coreBenefit.split(' ').slice(0, 5).join(' ')}`,
-      lang === 'es' ? `${coreBenefit.charAt(0).toUpperCase() + coreBenefit.slice(1)} en solo ${metrics[0]}` : `${coreBenefit.charAt(0).toUpperCase() + coreBenefit.slice(1)} in just ${metrics[0]}`,
-    );
-  }
+  if (lang === 'es') {
+    const infBenefit = coreBenefit ? cleanInfinitive(coreBenefit) : '';
+    const capBenefit = coreBenefit ? coreBenefit.charAt(0).toUpperCase() + coreBenefit.slice(1) : '';
 
-  if (coreBenefit && audience) {
-    pool.push(
-      lang === 'es' ? `${audience}: ${coreBenefit}` : `${audience}: ${coreBenefit}`,
-      lang === 'es' ? `Para ${audience} que quieren ${coreBenefit.split(' ').slice(0, 4).join(' ')}` : `For ${audience} who want to ${coreBenefit.split(' ').slice(0, 4).join(' ')}`,
-    );
-  }
+    if (coreBenefit && metrics.length > 0) {
+      pool.push(
+        `${enforceMaxLength(capBenefit, 60)} en solo ${metrics[0]}`,
+        `Solo ${metrics[0]} para ${infBenefit}`,
+        `${metrics[0]}: todo lo que necesitas para ${infBenefit}`,
+      );
+    }
 
-  if (coreBenefit) {
-    pool.push(
-      lang === 'es' ? `${coreBenefit.charAt(0).toUpperCase() + coreBenefit.slice(1)}. As\u00ed de simple.` : `${coreBenefit.charAt(0).toUpperCase() + coreBenefit.slice(1)}. That simple.`,
-      lang === 'es' ? `\u00bfY si pudieras ${coreBenefit}?` : `What if you could ${coreBenefit}?`,
-      lang === 'es' ? `Imagina ${coreBenefit} cada d\u00eda` : `Imagine ${coreBenefit} every day`,
-    );
-  }
+    if (coreBenefit && audience) {
+      pool.push(
+        `${audience.charAt(0).toUpperCase() + audience.slice(1)}: ${coreBenefit}`,
+        `Para ${audience} que buscan ${infBenefit}`,
+        `${capBenefit}. Hecho para ${audience}`,
+      );
+    }
 
-  if (audience) {
-    pool.push(
-      lang === 'es' ? `Hecho para ${audience}` : `Made for ${audience}`,
-    );
-  }
+    if (coreBenefit) {
+      pool.push(
+        `${capBenefit}. Así de simple`,
+        `¿Y si pudieras ${infBenefit}?`,
+        `Imagina ${infBenefit} cada día`,
+      );
+    }
 
-  // Tone-specific variations
-  if ((tone === 'Urgente' || tone === 'urgent') && coreBenefit) {
-    pool.push(
-      lang === 'es' ? `No esperes m\u00e1s para ${coreBenefit.split(' ').slice(0, 4).join(' ')}` : `Don't wait to ${coreBenefit.split(' ').slice(0, 4).join(' ')}`,
-    );
+    if (audience) {
+      pool.push(`Hecho para ${audience}`);
+    }
+
+    if ((tone === 'Urgente' || tone === 'urgent') && coreBenefit) {
+      pool.push(`No esperes más para ${infBenefit}`);
+    }
+
+  } else {
+    // English templates
+    const cleanBenefit = coreBenefit ? coreBenefit.charAt(0).toLowerCase() + coreBenefit.slice(1) : '';
+    const capBenefitEn = coreBenefit ? coreBenefit.charAt(0).toUpperCase() + coreBenefit.slice(1) : '';
+
+    if (coreBenefit && metrics.length > 0) {
+      pool.push(
+        `${shortProduct}: ${coreBenefit}`,
+        `${metrics[0]} to ${cleanBenefit}`,
+        `${capBenefitEn} in just ${metrics[0]}`,
+      );
+    }
+
+    if (coreBenefit && audience) {
+      pool.push(
+        `${audience}: ${coreBenefit}`,
+        `For ${audience} who want to ${cleanBenefit}`,
+      );
+    }
+
+    if (coreBenefit) {
+      pool.push(
+        `${capBenefitEn}. That simple.`,
+        `What if you could ${cleanBenefit}?`,
+        `Imagine ${cleanBenefit} every day`,
+      );
+    }
+
+    if (audience) {
+      pool.push(`Made for ${audience}`);
+    }
+
+    if ((tone === 'Urgente' || tone === 'urgent') && coreBenefit) {
+      pool.push(`Don't wait to ${cleanBenefit}`);
+    }
   }
 
   const valid = pool.filter(h => h.length > 5);
   if (valid.length === 0) return shortProduct;
-  return valid[Math.floor(Math.random() * valid.length)];
+  const chosen = valid[Math.floor(Math.random() * valid.length)];
+  return enforceMaxLength(chosen, 80);
 }
+
 
 // ─── RELEVANT BODY GENERATOR ────────────────────────────────────────────────
 // Tells a story using the ACTUAL product info from user input.
@@ -1851,13 +2014,13 @@ function agenticGenerate(brandText, platform, tone, format, lang, prevHookType) 
     const audienceProfile = profileAudience(brandAnalysis, lang);
 
     // Agent 3: Relevant Headline — MUST reference the actual product
-    const headline = generateRelevantHeadline(brand, tone, platform, lang);
+    let headline = generateRelevantHeadline(brand, tone, platform, lang);
 
     // Agent 4: Relevant Body — tells a story using the ACTUAL product info
-    const body = generateRelevantBody(brand, tone, lang);
+    let body = generateRelevantBody(brand, tone, lang);
 
     // Agent 5: Relevant CTA — references the product
-    const cta = generateRelevantCTA(brand, format, lang);
+    let cta = generateRelevantCTA(brand, format, lang);
 
     // Subheadline from actual content
     let subheadline = '';
@@ -1866,6 +2029,12 @@ function agenticGenerate(brandText, platform, tone, format, lang, prevHookType) 
     } else if (brand.features.length > 0) {
       subheadline = lang === 'es' ? `Con ${brand.features[0]}` : `With ${brand.features[0]}`;
     }
+
+    // Agent 6.5: Grammar Correction — fix broken grammar in all generated text
+    headline = correctGrammar(headline, lang);
+    subheadline = correctGrammar(subheadline, lang);
+    body = correctGrammar(body, lang);
+    cta = correctGrammar(cta, lang);
 
     // Agent 6: Relevant Hashtags — derived from actual content
     const hashtags = generateRelevantHashtags(brand, platform, lang);
