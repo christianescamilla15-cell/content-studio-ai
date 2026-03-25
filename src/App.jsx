@@ -1,11 +1,197 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
+
+// ─── ONBOARDING TOUR ────────────────────────────────────────────────────────
+const TOUR_TEXT = {
+  en: {
+    welcomeTitle: "ContentStudio AI \u2014 Multi-Channel Content Generator",
+    welcomeBody: "Generate optimized marketing content for Instagram, Twitter/X, LinkedIn, and Facebook. Choose from 5 tones and 5 formats, get AI-generated copy with color palettes and DALL-E image prompts.\n\nLet me show you how!",
+    startTour: "Start Tour \u2192",
+    skipTour: "Skip",
+    skipLabel: "Skip Tour",
+    tryIt: "Try it \u2192",
+    next: "Next \u2192",
+    generate: "Generate \u2192",
+    finish: "Finish Tour \u2713",
+    step1Title: "Choose a Platform",
+    step1Body: "Select which social network to generate content for. Each platform has optimized dimensions and formats.",
+    step2Title: "Tone + Format",
+    step2Body: "Pick a tone (Professional, Inspiring, Urgent, Fun, Minimalist) and a format (Product, Service, Event, Offer, Branding).",
+    step3Title: "Describe Your Brand",
+    step3Body: "Enter a description of your product or service. The more detail you give, the better the generated content.",
+    step4Title: "Generate Content",
+    step4Body: "Click Generate to create your content. The AI analyzes your brand and produces optimized copy.",
+    step5Title: "Preview Results",
+    step5Body: "Here you can see the generated headline, body, CTA, and hashtags. Each card is individually copyable.",
+    step6Title: "Color Palette + DALL-E",
+    step6Body: "The Visual tab shows your auto-generated color palette and a ready-to-use DALL-E 3 image prompt.",
+    step7Title: "A/B Variants",
+    step7Body: "Generate alternative versions to compare headlines, CTAs, and body copy side by side.",
+    step8Title: "You're All Set!",
+    step8Body: "Explore history to revisit past generations, export content as JSON or Markdown, and add your Claude API key for real AI-powered generation. Enjoy!",
+    sampleBrand: "Meditation app for professionals with adaptive AI that reduces stress in 10 minutes a day, featuring personalized sessions and progress tracking",
+    stepOf: (c, t) => `${c} / ${t}`,
+  },
+  es: {
+    welcomeTitle: "ContentStudio AI \u2014 Generador de Contenido Multicanal",
+    welcomeBody: "Genera contenido de marketing optimizado para Instagram, Twitter/X, LinkedIn y Facebook. Elige entre 5 tonos y 5 formatos, obt\u00e9n copy generado por IA con paletas de colores y prompts para DALL-E.\n\n\u00a1D\u00e9jame mostrarte c\u00f3mo!",
+    startTour: "Iniciar Tour \u2192",
+    skipTour: "Omitir",
+    skipLabel: "Omitir Tour",
+    tryIt: "Probar \u2192",
+    next: "Siguiente \u2192",
+    generate: "Generar \u2192",
+    finish: "Finalizar Tour \u2713",
+    step1Title: "Elige una Plataforma",
+    step1Body: "Selecciona la red social para la que quieres generar contenido. Cada plataforma tiene dimensiones y formatos optimizados.",
+    step2Title: "Tono + Formato",
+    step2Body: "Elige un tono (Profesional, Inspirador, Urgente, Divertido, Minimalista) y un formato (Producto, Servicio, Evento, Oferta, Branding).",
+    step3Title: "Describe tu Marca",
+    step3Body: "Ingresa una descripci\u00f3n de tu producto o servicio. Mientras m\u00e1s detalle des, mejor ser\u00e1 el contenido generado.",
+    step4Title: "Generar Contenido",
+    step4Body: "Haz clic en Generar para crear tu contenido. La IA analiza tu marca y produce copy optimizado.",
+    step5Title: "Vista Previa de Resultados",
+    step5Body: "Aqu\u00ed puedes ver el headline, cuerpo, CTA y hashtags generados. Cada tarjeta se puede copiar individualmente.",
+    step6Title: "Paleta de Colores + DALL-E",
+    step6Body: "La pesta\u00f1a Visual muestra tu paleta de colores auto-generada y un prompt listo para usar con DALL-E 3.",
+    step7Title: "Variantes A/B",
+    step7Body: "Genera versiones alternativas para comparar headlines, CTAs y body copy lado a lado.",
+    step8Title: "\u00a1Todo Listo!",
+    step8Body: "Explora el historial para revisitar generaciones anteriores, exporta contenido como JSON o Markdown, y agrega tu clave API de Claude para generaci\u00f3n real con IA. \u00a1Disfruta!",
+    sampleBrand: "App de meditaci\u00f3n para profesionales con IA adaptativa que reduce el estr\u00e9s en 10 minutos al d\u00eda, con sesiones personalizadas y seguimiento de progreso",
+    stepOf: (c, t) => `${c} / ${t}`,
+  },
+};
+
+// ─── TRANSLATIONS ────────────────────────────────────────────────────────────
+const UI = {
+  es: {
+    headerSub: "Genera copy + visual para redes sociales en segundos",
+    productLabel: "Producto o Servicio",
+    placeholder: "Ej: App de meditaci\u00f3n para profesionales con IA adaptativa, reduce el estr\u00e9s en 10 minutos al d\u00eda...",
+    platformLabel: "Plataforma",
+    toneLabel: "Tono",
+    formatLabel: "Formato",
+    generateBtn: "Generar Contenido",
+    generatingBtn: "Generando contenido...",
+    generatingVisual: "Generando visual...",
+    defaultHeadline: "Tu contenido aqu\u00ed",
+    copied: "Copiado",
+    copy: "Copiar",
+    copiedToClipboard: (label) => `"${label}" copiado al portapapeles`,
+    errorMsg: "Error generando contenido. Verifica tu conexi\u00f3n e intenta de nuevo.",
+    retry: "Reintentar",
+    previewLabel: "Vista Previa",
+    bodyLabel: "Cuerpo",
+    colorPalette: "Paleta de Colores",
+    dallePromptLabel: "Prompt DALL-E 3",
+    bestTime: "Mejor Momento para Publicar",
+    tip: "Integra este generador con Make.com para programar publicaciones autom\u00e1ticas en Buffer o Hootsuite directamente desde el flujo de trabajo.",
+    emptyState: "EL CONTENIDO APARECER\u00c1 AQU\u00cd",
+    describeMin: (min, remaining) => `Describe tu producto con al menos ${min} caracteres (faltan ${remaining})`,
+    describePrompt: "Describe tu producto para generar",
+    minChars: (min, remaining) => `M\u00ednimo ${min} caracteres (faltan ${remaining})`,
+    regenerate: "Regenerar",
+    copyAll: "Copiar todo",
+    allExported: "Todo el contenido exportado al portapapeles",
+    bodyExport: "CUERPO",
+    bestTimeExport: "MEJOR HORARIO",
+    ctaBar: "Esto es una demo gratuita de Impulso IA -- \u00bfQuieres algo as\u00ed para tu negocio?",
+    ctaTalk: "Platiquemos",
+    loadingSteps: ["Analizando tu marca...", "Generando copy...", "Creando paleta visual..."],
+    userMsg: (brand) => `Genera contenido de marketing para: ${brand}`,
+    apiKeyLabel: "Clave API (Claude)",
+    apiKeyPlaceholder: "sk-ant-...",
+    apiKeyHint: "Opcional: agrega tu clave de Anthropic para IA real",
+    aiMode: "Modo IA",
+    templateMode: "Modo Plantillas",
+    aiBadge: "IA",
+    aiToolUseBadge: "IA Tool Use",
+    templateBadge: "Smart Templates",
+    historyTitle: "Historial",
+    clearHistory: "Limpiar historial",
+    noHistory: "Sin historial",
+    generateVariants: "Generar Variantes",
+    variantLabel: (n) => `Opci\u00f3n ${String.fromCharCode(65 + n)}`,
+    pickFavorite: "Favorita",
+    exportJSON: "Exportar JSON",
+    exportMD: "Exportar Markdown",
+    statsTitle: "Estad\u00edsticas",
+    totalGens: "generaciones",
+    mostPlatform: "Plataforma top",
+    mostTone: "Tono top",
+    aiRatio: "IA vs Plantillas",
+    toneNames: { Profesional: "Profesional", Inspirador: "Inspirador", Urgente: "Urgente", Divertido: "Divertido", Minimalista: "Minimalista" },
+    formatNames: { Producto: "Producto", Servicio: "Servicio", Evento: "Evento", Oferta: "Oferta", Branding: "Branding" },
+    tabCopy: "Copy", tabVisual: "Visual", tabTiming: "Horario",
+  },
+  en: {
+    headerSub: "Generate copy + visuals for social media in seconds",
+    productLabel: "Product or Service",
+    placeholder: "E.g.: Meditation app for professionals with adaptive AI, reduces stress in 10 minutes a day...",
+    platformLabel: "Platform",
+    toneLabel: "Tone",
+    formatLabel: "Format",
+    generateBtn: "Generate Content",
+    generatingBtn: "Generating content...",
+    generatingVisual: "Generating visual...",
+    defaultHeadline: "Your content here",
+    copied: "Copied",
+    copy: "Copy",
+    copiedToClipboard: (label) => `"${label}" copied to clipboard`,
+    errorMsg: "Error generating content. Check your connection and try again.",
+    retry: "Retry",
+    previewLabel: "Preview",
+    bodyLabel: "Body",
+    colorPalette: "Color Palette",
+    dallePromptLabel: "DALL-E 3 Prompt",
+    bestTime: "Best Time to Post",
+    tip: "Integrate this generator with Make.com to schedule automatic posts on Buffer or Hootsuite directly from the workflow.",
+    emptyState: "CONTENT WILL APPEAR HERE",
+    describeMin: (min, remaining) => `Describe your product with at least ${min} characters (${remaining} remaining)`,
+    describePrompt: "Describe your product to generate",
+    minChars: (min, remaining) => `Minimum ${min} characters (${remaining} remaining)`,
+    regenerate: "Regenerate",
+    copyAll: "Copy all",
+    allExported: "All content exported to clipboard",
+    bodyExport: "BODY",
+    bestTimeExport: "BEST TIME",
+    ctaBar: "This is a free demo by Impulso IA -- Want something like this for your business?",
+    ctaTalk: "Let's talk",
+    loadingSteps: ["Analyzing your brand...", "Generating copy...", "Creating visual palette..."],
+    userMsg: (brand) => `Generate marketing content for: ${brand}`,
+    apiKeyLabel: "API Key (Claude)",
+    apiKeyPlaceholder: "sk-ant-...",
+    apiKeyHint: "Optional: add your Anthropic key for real AI generation",
+    aiMode: "AI Mode",
+    templateMode: "Template Mode",
+    aiBadge: "AI",
+    aiToolUseBadge: "AI Tool Use",
+    templateBadge: "Smart Templates",
+    historyTitle: "History",
+    clearHistory: "Clear history",
+    noHistory: "No history yet",
+    generateVariants: "Generate Variants",
+    variantLabel: (n) => `Option ${String.fromCharCode(65 + n)}`,
+    pickFavorite: "Favorite",
+    exportJSON: "Export JSON",
+    exportMD: "Export Markdown",
+    statsTitle: "Stats",
+    totalGens: "generations",
+    mostPlatform: "Top platform",
+    mostTone: "Top tone",
+    aiRatio: "AI vs Templates",
+    toneNames: { Profesional: "Professional", Inspirador: "Inspiring", Urgente: "Urgent", Divertido: "Fun", Minimalista: "Minimalist" },
+    formatNames: { Producto: "Product", Servicio: "Service", Evento: "Event", Oferta: "Offer", Branding: "Branding" },
+    tabCopy: "Copy", tabVisual: "Visual", tabTiming: "Timing",
+  },
+};
 
 // ─── PLATAFORMAS ──────────────────────────────────────────────────────────────
 const PLATFORMS = [
-  { id: "instagram", label: "Instagram", icon: "📸", dims: "1080×1080", ratio: "1:1" },
-  { id: "twitter",   label: "Twitter/X",  icon: "𝕏",  dims: "1200×675",  ratio: "16:9" },
-  { id: "linkedin",  label: "LinkedIn",   icon: "💼", dims: "1200×627",  ratio: "1.91:1" },
-  { id: "facebook",  label: "Facebook",   icon: "👥", dims: "1200×630",  ratio: "1.91:1" },
+  { id: "instagram", label: "Instagram", icon: "\ud83d\udcf8", dims: "1080\u00d71080", ratio: "1:1" },
+  { id: "twitter",   label: "Twitter/X",  icon: "\ud835\udd4f",  dims: "1200\u00d7675",  ratio: "16:9" },
+  { id: "linkedin",  label: "LinkedIn",   icon: "\ud83d\udcbc", dims: "1200\u00d7627",  ratio: "1.91:1" },
+  { id: "facebook",  label: "Facebook",   icon: "\ud83d\udc65", dims: "1200\u00d7630",  ratio: "1.91:1" },
 ];
 
 const TONES = ["Profesional", "Inspirador", "Urgente", "Divertido", "Minimalista"];
@@ -13,12 +199,6 @@ const FORMATS = ["Producto", "Servicio", "Evento", "Oferta", "Branding"];
 
 const BRAND_MIN = 10;
 const BRAND_MAX = 500;
-
-const LOADING_STEPS = [
-  "Analizando tu marca...",
-  "Generando copy...",
-  "Creando paleta visual...",
-];
 
 // ─── HEX VALIDATOR ───────────────────────────────────────────────────────────
 const isValidHex = (c) => /^#([0-9A-Fa-f]{3}){1,2}$/.test(c);
@@ -483,6 +663,286 @@ function generateSmartContent(brand, platform, tone, format, generationCount) {
   return { headline, subheadline, body, cta, hashtags, emoji_set, dalle_prompt, color_palette, posting_time };
 }
 
+// ─── CLAUDE TOOL USE ─────────────────────────────────────────────────────────
+const CONTENT_TOOLS = [
+  {
+    name: "analyze_brand",
+    description: "Parse a brand description to extract structured information: product name, industry, benefits, target audience, and key descriptors.",
+    input_schema: {
+      type: "object",
+      properties: {
+        brand_description: { type: "string", description: "The raw brand/product description from the user" },
+      },
+      required: ["brand_description"],
+    },
+  },
+  {
+    name: "generate_copy",
+    description: "Generate platform-specific marketing copy including headline, subheadline, body text, CTA, and hashtags.",
+    input_schema: {
+      type: "object",
+      properties: {
+        product_name: { type: "string" },
+        industry: { type: "string" },
+        benefits: { type: "array", items: { type: "string" } },
+        target_audience: { type: "string" },
+        descriptors: { type: "array", items: { type: "string" } },
+        platform: { type: "string", enum: ["instagram", "twitter", "linkedin", "facebook"] },
+        tone: { type: "string", enum: ["Profesional", "Inspirador", "Urgente", "Divertido", "Minimalista"] },
+        format: { type: "string", enum: ["Producto", "Servicio", "Evento", "Oferta", "Branding"] },
+      },
+      required: ["product_name", "industry", "platform", "tone", "format"],
+    },
+  },
+  {
+    name: "suggest_colors",
+    description: "Suggest a 3-color hex palette based on the industry and desired tone.",
+    input_schema: {
+      type: "object",
+      properties: {
+        industry: { type: "string" },
+        tone: { type: "string" },
+      },
+      required: ["industry", "tone"],
+    },
+  },
+  {
+    name: "recommend_timing",
+    description: "Recommend the best posting time for a given social media platform.",
+    input_schema: {
+      type: "object",
+      properties: {
+        platform: { type: "string", enum: ["instagram", "twitter", "linkedin", "facebook"] },
+      },
+      required: ["platform"],
+    },
+  },
+  {
+    name: "create_dalle_prompt",
+    description: "Create a detailed DALL-E 3 image generation prompt based on brand info, platform, and color palette.",
+    input_schema: {
+      type: "object",
+      properties: {
+        product_name: { type: "string" },
+        industry: { type: "string" },
+        descriptors: { type: "array", items: { type: "string" } },
+        platform: { type: "string" },
+        tone: { type: "string" },
+        color_palette: { type: "array", items: { type: "string" } },
+      },
+      required: ["product_name", "industry", "platform", "tone", "color_palette"],
+    },
+  },
+];
+
+function executeContentTool(toolName, toolInput) {
+  const rng = createRng(hashString(JSON.stringify(toolInput)));
+
+  switch (toolName) {
+    case "analyze_brand": {
+      const parsed = parseBrand(toolInput.brand_description || "");
+      return {
+        product_name: parsed.productName,
+        industry: parsed.detectedIndustry,
+        benefits: parsed.benefits.length > 0 ? parsed.benefits : ["mejora resultados", "ahorra tiempo"],
+        target_audience: parsed.audiences[0] || "profesionales y empresas",
+        descriptors: parsed.descriptors,
+        value_proposition: parsed.valueProp,
+      };
+    }
+    case "generate_copy": {
+      const { product_name, industry, benefits, target_audience, descriptors, platform, tone, format } = toolInput;
+      const seed = hashString(product_name + platform + tone + format);
+      const localRng = createRng(seed);
+      const formulas = HEADLINE_FORMULAS[tone] || HEADLINE_FORMULAS.Profesional;
+      const headline = pickRandom(shuffled(formulas, localRng), localRng)(product_name, benefits?.[0] || "");
+      const subFormulas = SUBHEADLINE_FORMULAS[tone] || SUBHEADLINE_FORMULAS.Profesional;
+      const subheadline = pickRandom(shuffled(subFormulas, localRng), localRng)(benefits?.[0] || "", target_audience || "");
+      const bodyFormulas = BODY_FORMULAS[tone] || BODY_FORMULAS.Profesional;
+      const body = pickRandom(shuffled(bodyFormulas, localRng), localRng)(product_name, benefits?.[0] || "", target_audience || "", descriptors || []);
+      const ctas = CTA_BY_FORMAT[format] || CTA_BY_FORMAT.Producto;
+      const cta = pickRandom(shuffled(ctas, localRng), localRng);
+      const industryTags = shuffled(INDUSTRY_HASHTAGS[industry] || INDUSTRY_HASHTAGS.general, localRng);
+      const formatTags = shuffled(FORMAT_HASHTAGS[format] || FORMAT_HASHTAGS.Producto, localRng);
+      const platTags = shuffled(PLATFORM_HASHTAGS[platform] || PLATFORM_HASHTAGS.instagram, localRng);
+      const hashtags = [...new Set([...industryTags.slice(0, 3), ...formatTags.slice(0, 1), ...platTags.slice(0, 1)])].slice(0, 5);
+      const emojiOptions = EMOJI_SETS[tone] || EMOJI_SETS.Profesional;
+      const emoji_set = pickRandom(shuffled(emojiOptions, localRng), localRng);
+      return { headline, subheadline, body, cta, hashtags, emoji_set };
+    }
+    case "suggest_colors": {
+      const { industry, tone } = toolInput;
+      let palettes;
+      if (tone === "Minimalista") {
+        palettes = TONE_PALETTE_ADJUSTMENTS.Minimalista;
+      } else {
+        palettes = INDUSTRY_PALETTES[industry] || INDUSTRY_PALETTES.general;
+      }
+      return { color_palette: pickRandom(shuffled(palettes, rng), rng) };
+    }
+    case "recommend_timing": {
+      const times = POSTING_TIMES[toolInput.platform] || POSTING_TIMES.instagram;
+      return { posting_time: pickRandom(shuffled(times, rng), rng) };
+    }
+    case "create_dalle_prompt": {
+      const { product_name, industry, descriptors, platform, tone, color_palette } = toolInput;
+      const parsed = { productName: product_name, detectedIndustry: industry, descriptors: descriptors || [] };
+      return { dalle_prompt: buildDallePrompt(parsed, platform, tone, color_palette || ["#1a1a2e", "#16213e", "#0f3460"], rng) };
+    }
+    default:
+      return { error: `Unknown tool: ${toolName}` };
+  }
+}
+
+async function generateWithToolUse(apiKey, brandDesc, platform, tone, format, lang) {
+  try {
+    const langLabel = lang === "en" ? "English" : "Spanish";
+    let messages = [
+      {
+        role: "user",
+        content: `You are a senior social media marketing expert. Generate compelling content for this brand.
+
+Brand description: ${brandDesc}
+Platform: ${platform}
+Tone: ${tone}
+Format: ${format}
+Language: ${langLabel}
+
+Use the tools in this order:
+1. First call analyze_brand to understand the brand
+2. Then call generate_copy with the brand analysis
+3. Call suggest_colors for a color palette
+4. Call recommend_timing for posting schedule
+5. Call create_dalle_prompt for visual generation
+
+After all tools return data, synthesize the results into a final JSON with these exact keys: headline, subheadline, body, cta, hashtags, emoji_set, dalle_prompt, color_palette, posting_time. Improve the copy if you can — make headlines punchier and bodies more persuasive while keeping the tone. Respond with ONLY the final JSON.`,
+      },
+    ];
+
+    const MAX_ROUNDS = 8;
+    for (let round = 0; round < MAX_ROUNDS; round++) {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 2048,
+          tools: CONTENT_TOOLS,
+          messages,
+        }),
+      });
+
+      if (!response.ok) return null;
+      const data = await response.json();
+
+      // Check if Claude wants to use tools
+      const toolUseBlocks = (data.content || []).filter(b => b.type === "tool_use");
+      const textBlocks = (data.content || []).filter(b => b.type === "text");
+
+      if (data.stop_reason === "end_turn" || toolUseBlocks.length === 0) {
+        // Final response — extract JSON from text
+        const text = textBlocks.map(b => b.text).join("");
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0]);
+          // Validate required fields
+          if (parsed.headline && parsed.body) return parsed;
+        }
+        return null;
+      }
+
+      // Process tool calls — add assistant message then tool results
+      messages.push({ role: "assistant", content: data.content });
+
+      const toolResults = toolUseBlocks.map(block => ({
+        type: "tool_result",
+        tool_use_id: block.id,
+        content: JSON.stringify(executeContentTool(block.name, block.input)),
+      }));
+      messages.push({ role: "user", content: toolResults });
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// ─── CLAUDE API CALLER (simple fallback) ────────────────────────────────────
+async function generateWithClaude(apiKey, brandDesc, platform, tone, format, lang) {
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        system: `You are a senior social media copywriter. Generate marketing content in ${lang === "en" ? "English" : "Spanish"}. Respond ONLY with valid JSON: {"headline":"max 10 words","subheadline":"max 15 words","body":"2-3 sentences","cta":"max 5 words","hashtags":["tag1","tag2","tag3","tag4","tag5"],"emoji_set":["e1","e2","e3"],"dalle_prompt":"Detailed DALL-E 3 image prompt in English, 50+ words, professional marketing visual","color_palette":["#hex1","#hex2","#hex3"],"posting_time":"best time recommendation and why"}`,
+        messages: [{ role: "user", content: `Brand: ${brandDesc}\nPlatform: ${platform}\nTone: ${tone}\nFormat: ${format}\n\nGenerate compelling ${platform} content.` }],
+      }),
+    });
+    if (!response.ok) return null;
+    const data = await response.json();
+    const text = data.content?.[0]?.text || "";
+    return JSON.parse(text.replace(/```json|```/g, "").trim());
+  } catch {
+    return null;
+  }
+}
+
+// ─── HISTORY HELPERS ────────────────────────────────────────────────────────
+const HISTORY_KEY = "cs_history";
+const MAX_HISTORY = 20;
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); } catch { return []; }
+}
+
+function saveToHistory(entry) {
+  const hist = loadHistory();
+  hist.unshift(entry);
+  if (hist.length > MAX_HISTORY) hist.length = MAX_HISTORY;
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(hist));
+  return hist;
+}
+
+function clearHistory() {
+  localStorage.removeItem(HISTORY_KEY);
+}
+
+// ─── ANALYTICS HELPERS ──────────────────────────────────────────────────────
+const STATS_KEY = "cs_stats";
+
+function loadStats() {
+  try { return JSON.parse(localStorage.getItem(STATS_KEY) || '{"total":0,"platforms":{},"tones":{},"formats":{},"ai":0,"template":0}'); } catch { return { total: 0, platforms: {}, tones: {}, formats: {}, ai: 0, template: 0 }; }
+}
+
+function trackGeneration(platform, tone, format, usedAI) {
+  const st = loadStats();
+  st.total++;
+  st.platforms[platform] = (st.platforms[platform] || 0) + 1;
+  st.tones[tone] = (st.tones[tone] || 0) + 1;
+  st.formats[format] = (st.formats[format] || 0) + 1;
+  if (usedAI) st.ai++; else st.template++;
+  localStorage.setItem(STATS_KEY, JSON.stringify(st));
+  return st;
+}
+
+function topEntry(obj) {
+  let top = "-", max = 0;
+  for (const [k, v] of Object.entries(obj || {})) { if (v > max) { max = v; top = k; } }
+  return top;
+}
+
 // ─── TOAST ────────────────────────────────────────────────────────────────────
 function Toast({ message, visible }) {
   return (
@@ -503,7 +963,7 @@ function Toast({ message, visible }) {
 }
 
 // ─── MOCK VISUAL (simula imagen DALL-E con gradiente basado en colores) ────────
-function MockVisual({ colors, headline, platform, loading, loadingStep }) {
+function MockVisual({ colors, headline, platform, loading, loadingStep, s }) {
   const ratio = PLATFORMS.find(p => p.id === platform)?.ratio || "1:1";
   const [w, h] = ratio === "1:1" ? [1, 1] : ratio === "16:9" ? [16, 9] : [1.91, 1];
   const paddingBottom = `${(h / w) * 100}%`;
@@ -536,7 +996,7 @@ function MockVisual({ colors, headline, platform, loading, loadingStep }) {
               }} />
             </div>
             <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 12, fontFamily: "sans-serif", margin: 0 }}>
-              {loadingStep || "Generando visual..."}
+              {loadingStep || (s && s.generatingVisual) || "Generando visual..."}
             </p>
           </div>
         ) : (
@@ -553,7 +1013,7 @@ function MockVisual({ colors, headline, platform, loading, loadingStep }) {
                 textShadow: "0 2px 20px rgba(0,0,0,0.5)",
                 margin: "0 0 8px", lineHeight: 1.3,
               }}>
-                {headline || "Tu contenido aquí"}
+                {headline || (s && s.defaultHeadline) || "Tu contenido aqu\u00ed"}
               </p>
               <div style={{
                 fontSize: 10, color: "rgba(255,255,255,0.4)",
@@ -572,12 +1032,12 @@ function MockVisual({ colors, headline, platform, loading, loadingStep }) {
 }
 
 // ─── COPY CARD ────────────────────────────────────────────────────────────────
-function CopyCard({ label, content, accent, onCopied }) {
+function CopyCard({ label, content, accent, onCopied, s }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
     navigator.clipboard.writeText(Array.isArray(content) ? content.map(t => `#${t}`).join(" ") : content);
     setCopied(true);
-    if (onCopied) onCopied(`"${label}" copiado al portapapeles`);
+    if (onCopied) onCopied(s ? s.copiedToClipboard(label) : `"${label}" copiado al portapapeles`);
     setTimeout(() => setCopied(false), 1500);
   };
   return (
@@ -598,7 +1058,7 @@ function CopyCard({ label, content, accent, onCopied }) {
           fontSize: 11, color: copied ? "#4ADE80" : "rgba(255,255,255,0.3)",
           fontFamily: "sans-serif", transition: "color 0.2s",
         }}>
-          {copied ? "✓ Copiado" : "Copiar"}
+          {copied ? `\u2713 ${s ? s.copied : "Copiado"}` : (s ? s.copy : "Copiar")}
         </button>
       </div>
       <p style={{
@@ -612,7 +1072,7 @@ function CopyCard({ label, content, accent, onCopied }) {
 }
 
 // ─── APP PRINCIPAL ─────────────────────────────────────────────────────────────
-function ContactBar() {
+function ContactBar({ s }) {
   const [show, setShow] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   useEffect(() => {
@@ -625,9 +1085,9 @@ function ContactBar() {
   return (
     <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 9999, background: 'rgba(10,11,15,0.95)', backdropFilter: 'blur(12px)', borderTop: '1px solid rgba(99,102,241,0.2)', padding: '12px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', animation: 'slideUpCTA 0.4s ease', fontFamily: "'DM Sans', sans-serif" }}>
       <style>{`@keyframes slideUpCTA { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
-      <span style={{ color: '#E2E8F0', fontSize: 14, fontWeight: 500 }}>Esto es una demo gratuita de Impulso IA 👋 ¿Quieres algo así para tu negocio?</span>
+      <span style={{ color: '#E2E8F0', fontSize: 14, fontWeight: 500 }}>{s.ctaBar}</span>
       <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-        <a href="https://impulso-ia-navy.vercel.app/#contacto" target="_blank" rel="noopener noreferrer" style={{ padding: '8px 18px', borderRadius: 8, background: 'linear-gradient(135deg, #6366F1, #4F46E5)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', transition: 'transform 0.2s' }}>Platiquemos</a>
+        <a href="https://impulso-ia-navy.vercel.app/#contacto" target="_blank" rel="noopener noreferrer" style={{ padding: '8px 18px', borderRadius: 8, background: 'linear-gradient(135deg, #6366F1, #4F46E5)', color: '#fff', fontSize: 13, fontWeight: 600, textDecoration: 'none', transition: 'transform 0.2s' }}>{s.ctaTalk}</a>
         <a href="https://wa.me/525579605324?text=Hola%20Christian%2C%20me%20interesa%20saber%20m%C3%A1s%20sobre%20tus%20servicios%20de%20IA" target="_blank" rel="noopener noreferrer" style={{ padding: '8px 18px', borderRadius: 8, background: 'rgba(37,211,102,0.15)', border: '1px solid rgba(37,211,102,0.3)', color: '#25D366', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>WhatsApp</a>
         <button onClick={dismiss} style={{ background: 'none', border: 'none', color: '#64748B', fontSize: 18, cursor: 'pointer', padding: '4px 8px' }}>✕</button>
       </div>
@@ -635,7 +1095,231 @@ function ContactBar() {
   );
 }
 
+// ─── TOUR OVERLAY COMPONENT ──────────────────────────────────────────────────
+function TourOverlay({ step, t, tourLang, setTourLang, onNext, onSkip, refs }) {
+  const [spotlightRect, setSpotlightRect] = useState(null);
+  const TOTAL_STEPS = 8;
+
+  // Map step -> ref
+  const stepRefMap = {
+    1: refs.platformRef,
+    2: refs.toneFormatRef,
+    3: refs.brandRef,
+    4: refs.generateBtnRef,
+    5: refs.resultCopyRef,
+    6: refs.resultVisualRef,
+    7: refs.variantBtnRef,
+  };
+
+  useEffect(() => {
+    if (step === 0 || step === 8 || step === -1) {
+      setSpotlightRect(null);
+      return;
+    }
+    const ref = stepRefMap[step];
+    if (ref?.current) {
+      const updateRect = () => {
+        const r = ref.current.getBoundingClientRect();
+        setSpotlightRect({ top: r.top + window.scrollY - 8, left: r.left - 8, width: r.width + 16, height: r.height + 16 });
+      };
+      updateRect();
+      const timer = setTimeout(updateRect, 200);
+      return () => clearTimeout(timer);
+    } else {
+      setSpotlightRect(null);
+    }
+  }, [step]);
+
+  if (step === -1) return null; // hidden during generation
+
+  const stepConfig = {
+    0: { title: t.welcomeTitle, body: t.welcomeBody, btn: t.startTour },
+    1: { title: t.step1Title, body: t.step1Body, btn: t.tryIt },
+    2: { title: t.step2Title, body: t.step2Body, btn: t.tryIt },
+    3: { title: t.step3Title, body: t.step3Body, btn: t.tryIt },
+    4: { title: t.step4Title, body: t.step4Body, btn: t.generate },
+    5: { title: t.step5Title, body: t.step5Body, btn: t.next },
+    6: { title: t.step6Title, body: t.step6Body, btn: t.next },
+    7: { title: t.step7Title, body: t.step7Body, btn: t.tryIt },
+    8: { title: t.step8Title, body: t.step8Body, btn: t.finish },
+  };
+
+  const cfg = stepConfig[step];
+  if (!cfg) return null;
+
+  const isWelcome = step === 0;
+  const isFinish = step === 8;
+
+  // Position tooltip near spotlight
+  let tooltipStyle = {};
+  if (spotlightRect && !isWelcome && !isFinish) {
+    const viewH = window.innerHeight;
+    const spotScreenTop = spotlightRect.top - window.scrollY;
+    const below = spotScreenTop + spotlightRect.height + 16;
+    const above = spotScreenTop - 16;
+    if (below + 200 < viewH) {
+      tooltipStyle = { position: "fixed", top: below, left: Math.max(16, Math.min(spotlightRect.left, window.innerWidth - 380)), maxWidth: 360 };
+    } else {
+      tooltipStyle = { position: "fixed", top: Math.max(16, above - 200), left: Math.max(16, Math.min(spotlightRect.left, window.innerWidth - 380)), maxWidth: 360 };
+    }
+  }
+
+  return (
+    <>
+      <style>{`
+        @keyframes tourFadeIn { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:scale(1); } }
+        @keyframes tourPulse { 0%,100% { box-shadow: 0 0 0 0 rgba(232,197,71,0.4); } 50% { box-shadow: 0 0 0 8px rgba(232,197,71,0); } }
+      `}</style>
+
+      {/* Backdrop */}
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 10000,
+        pointerEvents: isWelcome || isFinish ? "auto" : "none",
+      }}>
+        {/* Dark overlay with spotlight cutout */}
+        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "auto" }} onClick={(e) => e.stopPropagation()}>
+          <defs>
+            <mask id="tour-mask">
+              <rect x="0" y="0" width="100%" height="100%" fill="white" />
+              {spotlightRect && (
+                <rect
+                  x={spotlightRect.left} y={spotlightRect.top}
+                  width={spotlightRect.width} height={spotlightRect.height}
+                  rx="12" fill="black"
+                />
+              )}
+            </mask>
+          </defs>
+          <rect x="0" y="0" width="100%" height="100%" fill="rgba(0,0,0,0.75)" mask="url(#tour-mask)" />
+        </svg>
+
+        {/* Spotlight ring */}
+        {spotlightRect && (
+          <div style={{
+            position: "absolute",
+            top: spotlightRect.top, left: spotlightRect.left,
+            width: spotlightRect.width, height: spotlightRect.height,
+            border: "2px solid rgba(232,197,71,0.6)", borderRadius: 12,
+            pointerEvents: "none",
+            animation: "tourPulse 2s ease infinite",
+          }} />
+        )}
+
+        {/* Tooltip / Modal */}
+        <div style={{
+          ...(isWelcome || isFinish ? {
+            position: "fixed", top: "50%", left: "50%",
+            transform: "translate(-50%, -50%)", maxWidth: 440, width: "90%",
+          } : tooltipStyle),
+          background: "#1A1B2E",
+          border: "1px solid rgba(232,197,71,0.3)",
+          borderRadius: 16, padding: isWelcome ? "32px 28px" : "20px 22px",
+          boxShadow: "0 20px 60px rgba(0,0,0,0.6)",
+          zIndex: 10001,
+          animation: "tourFadeIn 0.3s ease",
+          pointerEvents: "auto",
+          fontFamily: "'DM Sans', sans-serif",
+        }}>
+          {/* Step counter (not on welcome) */}
+          {!isWelcome && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+              <span style={{
+                fontSize: 10, fontFamily: "'DM Mono', monospace",
+                color: "#E8C547", letterSpacing: "0.1em",
+              }}>
+                {t.stepOf(step, TOTAL_STEPS)}
+              </span>
+              <button onClick={onSkip} style={{
+                background: "none", border: "none", fontSize: 11,
+                color: "rgba(255,255,255,0.3)", cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif",
+              }}>
+                {t.skipLabel}
+              </button>
+            </div>
+          )}
+
+          {/* Language selector on welcome */}
+          {isWelcome && (
+            <div style={{ display: "flex", justifyContent: "center", gap: 8, marginBottom: 20 }}>
+              {["en", "es"].map(l => (
+                <button key={l} onClick={() => setTourLang(l)} style={{
+                  background: tourLang === l ? "rgba(232,197,71,0.15)" : "rgba(255,255,255,0.05)",
+                  border: `1px solid ${tourLang === l ? "#E8C547" : "rgba(255,255,255,0.1)"}`,
+                  borderRadius: 6, padding: "6px 18px",
+                  fontSize: 13, fontWeight: tourLang === l ? 700 : 400,
+                  color: tourLang === l ? "#E8C547" : "rgba(255,255,255,0.4)",
+                  cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                  transition: "all 0.2s",
+                }}>
+                  {l === "en" ? "English" : "Espa\u00f1ol"}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <h3 style={{
+            margin: "0 0 10px", fontSize: isWelcome ? 22 : 16, fontWeight: 700,
+            color: "#F8F4E8", fontFamily: "'Playfair Display', serif",
+            lineHeight: 1.3,
+          }}>
+            {cfg.title}
+          </h3>
+          <p style={{
+            margin: "0 0 20px", fontSize: 13, color: "rgba(255,255,255,0.55)",
+            lineHeight: 1.7, whiteSpace: "pre-line",
+          }}>
+            {cfg.body}
+          </p>
+
+          <div style={{ display: "flex", gap: 10, justifyContent: isWelcome ? "center" : "flex-start" }}>
+            <button onClick={onNext} style={{
+              padding: "10px 24px",
+              background: "linear-gradient(135deg, #E8C547, #D4A017)",
+              border: "none", borderRadius: 8,
+              fontSize: 13, fontWeight: 700,
+              color: "#0C0C14", cursor: "pointer",
+              fontFamily: "'DM Sans', sans-serif",
+              boxShadow: "0 0 20px rgba(232,197,71,0.3)",
+              transition: "transform 0.15s",
+            }}>
+              {cfg.btn}
+            </button>
+            {isWelcome && (
+              <button onClick={onSkip} style={{
+                padding: "10px 20px",
+                background: "rgba(255,255,255,0.05)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                borderRadius: 8, fontSize: 13,
+                color: "rgba(255,255,255,0.4)",
+                cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+              }}>
+                {t.skipTour}
+              </button>
+            )}
+          </div>
+
+          {/* Progress dots */}
+          {!isWelcome && (
+            <div style={{ display: "flex", gap: 4, marginTop: 14, justifyContent: "center" }}>
+              {Array.from({ length: TOTAL_STEPS }, (_, i) => (
+                <div key={i} style={{
+                  width: i + 1 === step ? 18 : 6, height: 6,
+                  borderRadius: 3,
+                  background: i + 1 <= step ? "#E8C547" : "rgba(255,255,255,0.1)",
+                  transition: "all 0.3s",
+                }} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function ContentGenerator() {
+  const [lang, setLang] = useState("es");
   const [brand, setBrand] = useState("");
   const [platform, setPlatform] = useState("instagram");
   const [tone, setTone] = useState("Profesional");
@@ -647,22 +1331,150 @@ export default function ContentGenerator() {
   const [loadingStep, setLoadingStep] = useState("");
   const [toast, setToast] = useState({ message: "", visible: false });
   const [generationCount, setGenerationCount] = useState(0);
+  // New state
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem("cs_apikey") || "");
+  const [apiKeyOpen, setApiKeyOpen] = useState(false);
+  const [usedAI, setUsedAI] = useState(false);
+  const [history, setHistory] = useState(() => loadHistory());
+  const [showHistory, setShowHistory] = useState(false);
+  const [variants, setVariants] = useState(null);
+  const [favoriteVariant, setFavoriteVariant] = useState(null);
+  const [showStats, setShowStats] = useState(false);
+  const [stats, setStats] = useState(() => loadStats());
+  const [exportOpen, setExportOpen] = useState(false);
+
+  // ── ONBOARDING TOUR STATE ──
+  const [tourActive, setTourActive] = useState(true);
+  const [tourStep, setTourStep] = useState(0);
+  const [tourLang, setTourLang] = useState("en");
+  const tourT = TOUR_TEXT[tourLang];
+
+  const s = UI[lang];
 
   // Ref to track if generation was cancelled by settings change
   const generationIdRef = useRef(0);
+
+  // ── TOUR REFS ──
+  const platformRef = useRef(null);
+  const toneFormatRef = useRef(null);
+  const brandRef = useRef(null);
+  const generateBtnRef = useRef(null);
+  const resultCopyRef = useRef(null);
+  const resultVisualRef = useRef(null);
+  const variantBtnRef = useRef(null);
 
   const showToast = (message) => {
     setToast({ message, visible: true });
     setTimeout(() => setToast({ message: "", visible: false }), 2200);
   };
 
+  // ── TOUR ACTIONS ──
+  const endTour = useCallback(() => {
+    setTourActive(false);
+    setTourStep(0);
+  }, []);
+
+  const tourNext = useCallback(async () => {
+    const step = tourStep;
+    if (step === 0) {
+      // Welcome -> go to step 1, set lang from tourLang
+      setLang(tourLang);
+      setTourStep(1);
+      setTimeout(() => platformRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+    } else if (step === 1) {
+      // Auto-select Instagram
+      setPlatform("instagram");
+      setTourStep(2);
+      setTimeout(() => toneFormatRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+    } else if (step === 2) {
+      // Auto-select Professional + Product
+      setTone("Profesional");
+      setFormat("Producto");
+      setTourStep(3);
+      setTimeout(() => brandRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+    } else if (step === 3) {
+      // Auto-fill brand description
+      const sampleText = TOUR_TEXT[tourLang].sampleBrand;
+      setBrand(sampleText);
+      setTourStep(4);
+      setTimeout(() => generateBtnRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+    } else if (step === 4) {
+      // Auto-click generate — hide tour tooltip temporarily, wait for result
+      setTourStep(-1); // hide tooltip while generating
+      // Trigger generate
+      const currentGenId = ++generationIdRef.current;
+      const nextCount = 0;
+      setGenerationCount(nextCount);
+      setLoading(true);
+      setError("");
+      setResult(null);
+      setVariants(null);
+      setFavoriteVariant(null);
+
+      const currentS = UI[tourLang];
+      for (let i = 0; i < currentS.loadingSteps.length; i++) {
+        if (generationIdRef.current !== currentGenId) return;
+        setLoadingStep(currentS.loadingSteps[i]);
+        await new Promise(r => setTimeout(r, 400));
+      }
+      if (generationIdRef.current !== currentGenId) return;
+
+      const finalResult = generateSmartContent(brand.trim().length >= BRAND_MIN ? brand : TOUR_TEXT[tourLang].sampleBrand, "instagram", "Profesional", "Producto", nextCount);
+      finalResult._toolUse = false;
+      setUsedAI(false);
+      setResult(finalResult);
+      setActiveTab("copy");
+      setLoading(false);
+      setLoadingStep("");
+      const newStats = trackGeneration("instagram", "Profesional", "Producto", false);
+      setStats(newStats);
+      const entry = {
+        id: Date.now(),
+        brand: (brand || TOUR_TEXT[tourLang].sampleBrand).substring(0, 60),
+        platform: "instagram", tone: "Profesional", format: "Producto",
+        timestamp: new Date().toISOString(), usedAI: false, result: finalResult,
+      };
+      const newHist = saveToHistory(entry);
+      setHistory(newHist);
+
+      // Show step 5 after a short delay
+      setTimeout(() => {
+        setTourStep(5);
+        resultCopyRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 600);
+    } else if (step === 5) {
+      // Show visual tab
+      setActiveTab("visual");
+      setTourStep(6);
+      setTimeout(() => resultVisualRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+    } else if (step === 6) {
+      setActiveTab("copy");
+      setTourStep(7);
+      setTimeout(() => variantBtnRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 150);
+    } else if (step === 7) {
+      // Auto-generate variants
+      if (result) {
+        const variantResults = [];
+        for (let v = 0; v < 2; v++) {
+          const varResult = generateSmartContent(brand || TOUR_TEXT[tourLang].sampleBrand, "instagram", "Profesional", "Producto", generationCount + 100 + v * 37);
+          variantResults.push({ ...varResult, source: "template" });
+        }
+        setVariants(variantResults);
+        setFavoriteVariant(null);
+      }
+      setTourStep(8);
+    } else if (step === 8) {
+      endTour();
+    }
+  }, [tourStep, tourLang, brand, result, generationCount, endTour]);
+
   const brandTooShort = brand.trim().length > 0 && brand.trim().length < BRAND_MIN;
   const canGenerate = brand.trim().length >= BRAND_MIN && !loading;
 
   const getDisabledReason = () => {
-    if (loading) return "Generando contenido...";
-    if (!brand.trim()) return "Describe tu producto para generar";
-    if (brandTooShort) return `Mínimo ${BRAND_MIN} caracteres (faltan ${BRAND_MIN - brand.trim().length})`;
+    if (loading) return s.generatingBtn;
+    if (!brand.trim()) return s.describePrompt;
+    if (brandTooShort) return s.minChars(BRAND_MIN, BRAND_MIN - brand.trim().length);
     return "";
   };
 
@@ -674,63 +1486,65 @@ export default function ContentGenerator() {
     setLoading(true);
     setError("");
     setResult(null);
+    setVariants(null);
+    setFavoriteVariant(null);
 
-    // Smart generation mode — no API key needed
-    const useDemoMode = true;
+    let aiUsed = false;
 
-    if (useDemoMode) {
-      // Stepped loading animation
-      for (let i = 0; i < LOADING_STEPS.length; i++) {
-        if (generationIdRef.current !== currentGenId) return; // cancelled
-        setLoadingStep(LOADING_STEPS[i]);
-        await new Promise(r => setTimeout(r, 500));
-      }
-      if (generationIdRef.current !== currentGenId) return; // cancelled
-
-      const smartResults = generateSmartContent(brand, platform, tone, format, nextCount);
-      setResult(smartResults);
-      setActiveTab("copy");
-      setLoading(false);
-      setLoadingStep("");
-      return;
+    // Stepped loading animation
+    for (let i = 0; i < s.loadingSteps.length; i++) {
+      if (generationIdRef.current !== currentGenId) return;
+      setLoadingStep(s.loadingSteps[i]);
+      await new Promise(r => setTimeout(r, 400));
     }
+    if (generationIdRef.current !== currentGenId) return;
 
-    try {
-      setLoadingStep(LOADING_STEPS[0]);
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model: "claude-sonnet-4-20250514",
-          max_tokens: 1000,
-          system: buildSystemPrompt(platform, tone, format),
-          messages: [{ role: "user", content: `Genera contenido de marketing para: ${brand}` }],
-        }),
-      });
-
+    // Try Claude Tool Use first, then simple Claude, then templates
+    let claudeResult = null;
+    let toolUseMode = false;
+    if (apiKey.trim()) {
+      claudeResult = await generateWithToolUse(apiKey.trim(), brand, platform, tone, format, lang);
       if (generationIdRef.current !== currentGenId) return;
-      setLoadingStep(LOADING_STEPS[1]);
-
-      const data = await response.json();
-      const text = data.content?.[0]?.text || "";
-      const clean = text.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
-
-      if (generationIdRef.current !== currentGenId) return;
-      setLoadingStep(LOADING_STEPS[2]);
-      await new Promise(r => setTimeout(r, 300));
-
-      setResult(parsed);
-      setActiveTab("copy");
-    } catch (_e) {
-      if (generationIdRef.current !== currentGenId) return;
-      setError("Error generando contenido. Verifica tu conexión e intenta de nuevo.");
-    } finally {
-      if (generationIdRef.current === currentGenId) {
-        setLoading(false);
-        setLoadingStep("");
+      if (claudeResult) toolUseMode = true;
+      // Fallback to simple Claude call
+      if (!claudeResult) {
+        claudeResult = await generateWithClaude(apiKey.trim(), brand, platform, tone, format, lang);
+        if (generationIdRef.current !== currentGenId) return;
       }
     }
+
+    let finalResult;
+    if (claudeResult) {
+      aiUsed = true;
+      finalResult = claudeResult;
+    } else {
+      finalResult = generateSmartContent(brand, platform, tone, format, nextCount);
+    }
+    finalResult._toolUse = toolUseMode;
+
+    setUsedAI(aiUsed);
+    setResult(finalResult);
+    setActiveTab("copy");
+    setLoading(false);
+    setLoadingStep("");
+
+    // Track analytics
+    const newStats = trackGeneration(platform, tone, format, aiUsed);
+    setStats(newStats);
+
+    // Save to history
+    const entry = {
+      id: Date.now(),
+      brand: brand.substring(0, 60),
+      platform,
+      tone,
+      format,
+      timestamp: new Date().toISOString(),
+      usedAI: aiUsed,
+      result: finalResult,
+    };
+    const newHist = saveToHistory(entry);
+    setHistory(newHist);
   };
 
   const handlePlatformChange = (id) => {
@@ -746,7 +1560,7 @@ export default function ContentGenerator() {
       `HEADLINE: ${result.headline}`,
       `SUBHEADLINE: ${result.subheadline}`,
       "",
-      `CUERPO:`,
+      `${s.bodyExport}:`,
       result.body,
       "",
       `CTA: ${result.cta}`,
@@ -759,13 +1573,86 @@ export default function ContentGenerator() {
       `DALL-E PROMPT:`,
       result.dalle_prompt,
       "",
-      `MEJOR HORARIO:`,
+      `${s.bestTimeExport}:`,
       result.posting_time,
     ].join("\n");
 
     navigator.clipboard.writeText(text);
-    showToast("Todo el contenido exportado al portapapeles");
+    showToast(s.allExported);
   };
+
+  const exportJSON = () => {
+    if (!result) return;
+    const obj = { platform, tone, format, brand: brand.substring(0, 100), generatedWith: usedAI ? "Claude AI" : "Smart Templates", ...result };
+    navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
+    showToast(lang === "es" ? "JSON copiado al portapapeles" : "JSON copied to clipboard");
+    setExportOpen(false);
+  };
+
+  const exportMarkdown = () => {
+    if (!result) return;
+    const md = [
+      `# ${result.headline}`,
+      `### ${result.subheadline}`,
+      "",
+      result.body,
+      "",
+      `**CTA:** ${result.cta}`,
+      "",
+      `**Hashtags:** ${(result.hashtags || []).map(t => `#${t}`).join(" ")}`,
+      "",
+      `**Best Time:** ${result.posting_time}`,
+      "",
+      `**DALL-E Prompt:** ${result.dalle_prompt}`,
+      "",
+      `---`,
+      `*Generated with ContentStudio ${usedAI ? "(AI)" : "(Templates)"}*`,
+    ].join("\n");
+    navigator.clipboard.writeText(md);
+    showToast(lang === "es" ? "Markdown copiado al portapapeles" : "Markdown copied to clipboard");
+    setExportOpen(false);
+  };
+
+  const generateVariantsFn = async () => {
+    if (!result) return;
+    const variantResults = [];
+    // Generate 2 variants using different seeds
+    for (let v = 0; v < 2; v++) {
+      if (apiKey.trim()) {
+        const claudeVar = await generateWithClaude(apiKey.trim(), brand, platform, tone, format, lang);
+        if (claudeVar) { variantResults.push({ ...claudeVar, source: "ai" }); continue; }
+      }
+      const varResult = generateSmartContent(brand, platform, tone, format, generationCount + 100 + v * 37);
+      variantResults.push({ ...varResult, source: "template" });
+    }
+    setVariants(variantResults);
+    setFavoriteVariant(null);
+  };
+
+  const restoreFromHistory = (entry) => {
+    setResult(entry.result);
+    setBrand(entry.brand);
+    setPlatform(entry.platform);
+    setTone(entry.tone);
+    setFormat(entry.format);
+    setUsedAI(entry.usedAI);
+    setShowHistory(false);
+    setActiveTab("copy");
+    setVariants(null);
+    setFavoriteVariant(null);
+  };
+
+  const handleClearHistory = () => {
+    clearHistory();
+    setHistory([]);
+  };
+
+  const handleApiKeyChange = (val) => {
+    setApiKey(val);
+    localStorage.setItem("cs_apikey", val);
+  };
+
+  const hasApiKey = apiKey.trim().length > 0;
 
   const selectedPlatform = PLATFORMS.find(p => p.id === platform);
   const accent = "#E8C547";
@@ -824,25 +1711,128 @@ export default function ContentGenerator() {
               color: accent, border: `1px solid ${accent}40`,
               borderRadius: 4, padding: "3px 8px", letterSpacing: "0.1em",
             }}>AI-POWERED</span>
+
+            {/* MODE INDICATOR */}
+            <span style={{
+              fontSize: 9, fontFamily: "'DM Mono', monospace",
+              color: hasApiKey ? "#4ADE80" : "#6B7280",
+              background: hasApiKey ? "rgba(74,222,128,0.1)" : "rgba(255,255,255,0.05)",
+              border: `1px solid ${hasApiKey ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.08)"}`,
+              borderRadius: 4, padding: "3px 8px", letterSpacing: "0.08em",
+              cursor: "pointer",
+            }} onClick={() => setShowStats(!showStats)}>
+              {hasApiKey ? s.aiMode : s.templateMode} {stats.total > 0 ? `\u00b7 ${stats.total}` : ""}
+            </span>
+
+            {/* LANGUAGE TOGGLE */}
+            <div style={{
+              marginLeft: "auto",
+              display: "flex",
+              background: "rgba(255,255,255,0.05)",
+              borderRadius: 6,
+              border: "1px solid rgba(255,255,255,0.08)",
+              overflow: "hidden",
+            }}>
+              <button onClick={() => setLang("es")} style={{
+                background: lang === "es" ? `${accent}20` : "transparent",
+                border: "none",
+                padding: "5px 12px",
+                fontSize: 12,
+                fontWeight: lang === "es" ? 700 : 400,
+                color: lang === "es" ? accent : "rgba(255,255,255,0.35)",
+                cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif",
+                transition: "all 0.2s",
+              }}>ES</button>
+              <button onClick={() => setLang("en")} style={{
+                background: lang === "en" ? `${accent}20` : "transparent",
+                border: "none",
+                padding: "5px 12px",
+                fontSize: 12,
+                fontWeight: lang === "en" ? 700 : 400,
+                color: lang === "en" ? accent : "rgba(255,255,255,0.35)",
+                cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif",
+                transition: "all 0.2s",
+              }}>EN</button>
+            </div>
           </div>
           <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.35)", letterSpacing: "0.03em" }}>
-            Genera copy + visual para redes sociales en segundos · Claude API + DALL-E 3
+            {s.headerSub} &middot; Claude API + DALL-E 3
           </p>
         </div>
+
+        {/* STATS PANEL (collapsible) */}
+        {showStats && stats.total > 0 && (
+          <div style={{
+            marginBottom: 16, padding: "12px 16px",
+            background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
+            borderRadius: 10, display: "flex", gap: 20, flexWrap: "wrap", alignItems: "center",
+            animation: "fadeUp 0.3s ease",
+          }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: accent }}>{stats.total}</div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "'DM Mono', monospace", textTransform: "uppercase" }}>{s.totalGens}</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0" }}>{topEntry(stats.platforms)}</div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "'DM Mono', monospace", textTransform: "uppercase" }}>{s.mostPlatform}</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0" }}>{topEntry(stats.tones)}</div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "'DM Mono', monospace", textTransform: "uppercase" }}>{s.mostTone}</div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#E2E8F0" }}>{stats.ai} / {stats.template}</div>
+              <div style={{ fontSize: 9, color: "rgba(255,255,255,0.35)", fontFamily: "'DM Mono', monospace", textTransform: "uppercase" }}>{s.aiRatio}</div>
+            </div>
+          </div>
+        )}
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
 
           {/* PANEL IZQUIERDO — INPUTS */}
           <div>
+            {/* API KEY SECTION (collapsible) */}
+            <div style={{ marginBottom: 14 }}>
+              <button onClick={() => setApiKeyOpen(!apiKeyOpen)} style={{
+                background: "none", border: "none", cursor: "pointer", padding: 0,
+                display: "flex", alignItems: "center", gap: 6, marginBottom: apiKeyOpen ? 8 : 0,
+              }}>
+                <span style={{ fontSize: 10, color: apiKeyOpen ? accent : "rgba(255,255,255,0.3)", transition: "transform 0.2s", display: "inline-block", transform: apiKeyOpen ? "rotate(90deg)" : "rotate(0)" }}>&#9654;</span>
+                <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: hasApiKey ? "#4ADE80" : "rgba(255,255,255,0.4)", fontFamily: "'DM Mono', monospace" }}>
+                  {s.apiKeyLabel} {hasApiKey ? "\u2713" : ""}
+                </span>
+              </button>
+              {apiKeyOpen && (
+                <div style={{ animation: "fadeUp 0.2s ease" }}>
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={e => handleApiKeyChange(e.target.value)}
+                    placeholder={s.apiKeyPlaceholder}
+                    style={{
+                      width: "100%", background: "rgba(255,255,255,0.04)",
+                      border: `1px solid ${hasApiKey ? "rgba(74,222,128,0.3)" : "rgba(255,255,255,0.1)"}`,
+                      borderRadius: 8, padding: "8px 12px",
+                      color: "#F8F4E8", fontSize: 12,
+                      fontFamily: "'DM Mono', monospace",
+                    }}
+                  />
+                  <p style={{ margin: "4px 0 0", fontSize: 10, color: "rgba(255,255,255,0.25)" }}>{s.apiKeyHint}</p>
+                </div>
+              )}
+            </div>
+
             {/* Brand Input */}
-            <div style={{ marginBottom: 16 }}>
+            <div ref={brandRef} style={{ marginBottom: 16 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                 <label style={{
                   fontSize: 10, fontWeight: 700,
                   letterSpacing: "0.12em", textTransform: "uppercase",
                   color: "rgba(255,255,255,0.4)", fontFamily: "'DM Mono', monospace",
                 }}>
-                  Producto o Servicio
+                  {s.productLabel}
                 </label>
                 <span style={{
                   fontSize: 10, fontFamily: "'DM Mono', monospace",
@@ -856,7 +1846,7 @@ export default function ContentGenerator() {
                 onChange={e => {
                   if (e.target.value.length <= BRAND_MAX) setBrand(e.target.value);
                 }}
-                placeholder="Ej: App de meditación para profesionales con IA adaptativa, reduce el estrés en 10 minutos al día..."
+                placeholder={s.placeholder}
                 rows={4}
                 style={{
                   width: "100%", background: "rgba(255,255,255,0.04)",
@@ -874,19 +1864,19 @@ export default function ContentGenerator() {
                   margin: "6px 0 0", fontSize: 11, color: "#FCA5A5",
                   fontFamily: "'DM Sans', sans-serif",
                 }}>
-                  Describe tu producto con al menos 10 caracteres
+                  {s.describeMin(BRAND_MIN, BRAND_MIN - brand.trim().length)}
                 </p>
               )}
             </div>
 
             {/* Plataforma */}
-            <div style={{ marginBottom: 16 }}>
+            <div ref={platformRef} style={{ marginBottom: 16 }}>
               <label style={{
                 display: "block", fontSize: 10, fontWeight: 700,
                 letterSpacing: "0.12em", textTransform: "uppercase",
                 color: "rgba(255,255,255,0.4)", fontFamily: "'DM Mono', monospace",
                 marginBottom: 8,
-              }}>Plataforma</label>
+              }}>{s.platformLabel}</label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {PLATFORMS.map(p => (
                   <button key={p.id} onClick={() => handlePlatformChange(p.id)} style={{
@@ -913,10 +1903,10 @@ export default function ContentGenerator() {
             </div>
 
             {/* Tono y Formato */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
+            <div ref={toneFormatRef} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
               {[
-                { label: "Tono", options: TONES, value: tone, setter: setTone },
-                { label: "Formato", options: FORMATS, value: format, setter: setFormat },
+                { label: s.toneLabel, options: TONES, value: tone, setter: setTone },
+                { label: s.formatLabel, options: FORMATS, value: format, setter: setFormat },
               ].map(({ label, options, value, setter }) => (
                 <div key={label}>
                   <label style={{
@@ -937,7 +1927,7 @@ export default function ContentGenerator() {
                         textAlign: "left",
                         fontFamily: "'DM Sans', sans-serif",
                         transition: "all 0.15s",
-                      }}>{o}</button>
+                      }}>{label === s.toneLabel ? (s.toneNames[o] || o) : (s.formatNames[o] || o)}</button>
                     ))}
                   </div>
                 </div>
@@ -946,6 +1936,7 @@ export default function ContentGenerator() {
 
             {/* Botón Generar */}
             <button
+              ref={generateBtnRef}
               onClick={() => generate(false)}
               disabled={!canGenerate}
               style={{
@@ -963,7 +1954,7 @@ export default function ContentGenerator() {
                 boxShadow: canGenerate ? `0 0 24px ${accent}40` : "none",
               }}
             >
-              {loading ? loadingStep || "Generando contenido..." : "⚡ Generar Contenido"}
+              {loading ? loadingStep || s.generatingBtn : `\u26a1 ${s.generateBtn}`}
             </button>
             {!canGenerate && !loading && (
               <p style={{ margin: "8px 0 0", fontSize: 11, color: "rgba(255,255,255,0.25)", textAlign: "center" }}>
@@ -984,7 +1975,7 @@ export default function ContentGenerator() {
                   borderRadius: 6, padding: "6px 16px", cursor: "pointer",
                   fontSize: 12, color: "#FCA5A5", fontFamily: "'DM Sans', sans-serif",
                 }}>
-                  Reintentar
+                  {s.retry}
                 </button>
               </div>
             )}
@@ -1000,7 +1991,7 @@ export default function ContentGenerator() {
                   textTransform: "uppercase", color: "rgba(255,255,255,0.4)",
                   fontFamily: "'DM Mono', monospace",
                 }}>
-                  Vista Previa · {selectedPlatform?.label}
+                  {s.previewLabel} &middot; {selectedPlatform?.label}
                 </label>
                 {result && (
                   <span style={{ fontSize: 10, color: accent, fontFamily: "'DM Mono', monospace" }}>
@@ -1014,6 +2005,7 @@ export default function ContentGenerator() {
                 platform={platform}
                 loading={loading}
                 loadingStep={loadingStep}
+                s={s}
               />
               {result && (
                 <div style={{
@@ -1032,7 +2024,20 @@ export default function ContentGenerator() {
 
             {/* Tabs de contenido */}
             {result && (
-              <div style={{ animation: "fadeUp 0.4s ease" }}>
+              <div ref={resultCopyRef} style={{ animation: "fadeUp 0.4s ease" }}>
+                {/* AI / Template badge */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                  <span style={{
+                    fontSize: 9, fontWeight: 700, letterSpacing: "0.1em",
+                    padding: "3px 10px", borderRadius: 4,
+                    fontFamily: "'DM Mono', monospace",
+                    background: usedAI ? "rgba(74,222,128,0.12)" : "rgba(255,255,255,0.05)",
+                    color: usedAI ? "#4ADE80" : "#6B7280",
+                    border: `1px solid ${usedAI ? "rgba(74,222,128,0.25)" : "rgba(255,255,255,0.08)"}`,
+                  }}>
+                    {usedAI ? (result?._toolUse ? s.aiToolUseBadge : s.aiBadge) : s.templateBadge}
+                  </span>
+                </div>
                 <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
                   {["copy", "visual", "schedule"].map(tab => (
                     <button key={tab} onClick={() => setActiveTab(tab)} style={{
@@ -1044,7 +2049,7 @@ export default function ContentGenerator() {
                       cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
                       textTransform: "capitalize", transition: "all 0.15s",
                     }}>
-                      {tab === "copy" ? "Copy" : tab === "visual" ? "Visual" : "Timing"}
+                      {tab === "copy" ? s.tabCopy : tab === "visual" ? s.tabVisual : s.tabTiming}
                     </button>
                   ))}
                 </div>
@@ -1052,23 +2057,23 @@ export default function ContentGenerator() {
                 <div key={activeTab} style={{ animation: "tabFade 0.25s ease" }}>
                   {activeTab === "copy" && (
                     <div>
-                      <CopyCard label="Headline" content={result.headline} accent={accent} onCopied={showToast} />
-                      <CopyCard label="Subheadline" content={result.subheadline} accent={accent} onCopied={showToast} />
-                      <CopyCard label="Cuerpo" content={result.body} accent={accent} onCopied={showToast} />
-                      <CopyCard label="CTA" content={result.cta} accent={accent} onCopied={showToast} />
-                      <CopyCard label="Hashtags" content={result.hashtags} accent={accent} onCopied={showToast} />
+                      <CopyCard label="Headline" content={result.headline} accent={accent} onCopied={showToast} s={s} />
+                      <CopyCard label="Subheadline" content={result.subheadline} accent={accent} onCopied={showToast} s={s} />
+                      <CopyCard label={s.bodyLabel} content={result.body} accent={accent} onCopied={showToast} s={s} />
+                      <CopyCard label="CTA" content={result.cta} accent={accent} onCopied={showToast} s={s} />
+                      <CopyCard label="Hashtags" content={result.hashtags} accent={accent} onCopied={showToast} s={s} />
                     </div>
                   )}
 
                   {activeTab === "visual" && (
-                    <div>
+                    <div ref={resultVisualRef}>
                       <div style={{
                         background: "rgba(255,255,255,0.03)",
                         border: "1px solid rgba(255,255,255,0.07)",
                         borderRadius: 10, padding: "14px 16px", marginBottom: 10,
                       }}>
                         <p style={{ margin: "0 0 10px", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: accent, fontFamily: "'DM Mono', monospace" }}>
-                          Paleta de Colores
+                          {s.colorPalette}
                         </p>
                         <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                           {result.color_palette?.map((c, i) => {
@@ -1093,7 +2098,7 @@ export default function ContentGenerator() {
                         borderRadius: 10, padding: "14px 16px",
                       }}>
                         <p style={{ margin: "0 0 8px", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: accent, fontFamily: "'DM Mono', monospace" }}>
-                          Prompt DALL-E 3
+                          {s.dallePromptLabel}
                         </p>
                         <p style={{ margin: 0, fontSize: 12, color: "#9CA3AF", lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif" }}>
                           {result.dalle_prompt}
@@ -1109,21 +2114,21 @@ export default function ContentGenerator() {
                       borderRadius: 10, padding: "16px",
                     }}>
                       <p style={{ margin: "0 0 8px", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: accent, fontFamily: "'DM Mono', monospace" }}>
-                        Mejor Momento para Publicar
+                        {s.bestTime}
                       </p>
                       <p style={{ margin: 0, fontSize: 13, color: "#E2E8F0", lineHeight: 1.65 }}>
                         {result.posting_time}
                       </p>
                       <div style={{ marginTop: 16, padding: "12px", background: "rgba(232,197,71,0.06)", borderRadius: 8, border: "1px solid rgba(232,197,71,0.12)" }}>
                         <p style={{ margin: 0, fontSize: 11, color: "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>
-                          💡 <strong style={{ color: accent }}>Tip:</strong> Integra este generador con Make.com para programar publicaciones automáticas en Buffer o Hootsuite directamente desde el flujo de trabajo.
+                          <strong style={{ color: accent }}>Tip:</strong> {s.tip}
                         </p>
                       </div>
                     </div>
                   )}
                 </div>
 
-                {/* Regenerar + Copiar todo */}
+                {/* Regenerar + Export + Variants */}
                 <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
                   <button onClick={() => generate(true)} disabled={loading} style={{
                     flex: 1, padding: "10px",
@@ -1135,29 +2140,149 @@ export default function ContentGenerator() {
                     transition: "all 0.15s",
                     opacity: loading ? 0.5 : 1,
                   }}>
-                    Regenerar
+                    {s.regenerate}
                     {generationCount > 0 && (
                       <span style={{ marginLeft: 6, fontSize: 10, color: "rgba(255,255,255,0.3)" }}>
                         #{generationCount + 1}
                       </span>
                     )}
                   </button>
-                  <button onClick={exportAll} style={{
-                    flex: 1, padding: "10px",
-                    background: "rgba(232,197,71,0.08)",
-                    border: `1px solid ${accent}30`,
-                    borderRadius: 8, fontSize: 12, fontWeight: 600,
-                    color: accent, cursor: "pointer",
-                    fontFamily: "'DM Sans', sans-serif",
-                    transition: "all 0.15s",
-                  }}>
-                    Copiar todo
-                  </button>
+                  {/* EXPORT DROPDOWN */}
+                  <div style={{ flex: 1, position: "relative" }}>
+                    <button onClick={() => setExportOpen(!exportOpen)} style={{
+                      width: "100%", padding: "10px",
+                      background: "rgba(232,197,71,0.08)",
+                      border: `1px solid ${accent}30`,
+                      borderRadius: 8, fontSize: 12, fontWeight: 600,
+                      color: accent, cursor: "pointer",
+                      fontFamily: "'DM Sans', sans-serif",
+                      transition: "all 0.15s",
+                    }}>
+                      {s.copyAll} &#9662;
+                    </button>
+                    {exportOpen && (
+                      <div style={{
+                        position: "absolute", top: "100%", left: 0, right: 0, marginTop: 4,
+                        background: "#1E293B", border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 8, overflow: "hidden", zIndex: 50, animation: "fadeUp 0.15s ease",
+                      }}>
+                        <button onClick={() => { exportAll(); setExportOpen(false); }} style={{
+                          width: "100%", padding: "8px 12px", background: "none", border: "none",
+                          color: "#E2E8F0", fontSize: 11, textAlign: "left", cursor: "pointer",
+                          fontFamily: "'DM Sans', sans-serif",
+                        }}>{s.copyAll}</button>
+                        <button onClick={exportJSON} style={{
+                          width: "100%", padding: "8px 12px", background: "none", border: "none",
+                          borderTop: "1px solid rgba(255,255,255,0.06)",
+                          color: "#E2E8F0", fontSize: 11, textAlign: "left", cursor: "pointer",
+                          fontFamily: "'DM Sans', sans-serif",
+                        }}>{s.exportJSON}</button>
+                        <button onClick={exportMarkdown} style={{
+                          width: "100%", padding: "8px 12px", background: "none", border: "none",
+                          borderTop: "1px solid rgba(255,255,255,0.06)",
+                          color: "#E2E8F0", fontSize: 11, textAlign: "left", cursor: "pointer",
+                          fontFamily: "'DM Sans', sans-serif",
+                        }}>{s.exportMD}</button>
+                      </div>
+                    )}
+                  </div>
                 </div>
+
+                {/* GENERATE VARIANTS */}
+                <button ref={variantBtnRef} onClick={generateVariantsFn} style={{
+                  width: "100%", padding: "9px", marginTop: 8,
+                  background: "rgba(99,102,241,0.08)",
+                  border: "1px solid rgba(99,102,241,0.25)",
+                  borderRadius: 8, fontSize: 12, fontWeight: 600,
+                  color: "#818CF8", cursor: "pointer",
+                  fontFamily: "'DM Sans', sans-serif",
+                  transition: "all 0.15s",
+                }}>
+                  {s.generateVariants}
+                </button>
+
+                {/* VARIANTS DISPLAY */}
+                {variants && variants.length > 0 && (
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 10 }}>
+                    {variants.map((v, i) => (
+                      <div key={i} onClick={() => { setFavoriteVariant(i); setResult(v); setUsedAI(v.source === "ai"); }} style={{
+                        padding: "10px 12px",
+                        background: favoriteVariant === i ? "rgba(232,197,71,0.08)" : "rgba(255,255,255,0.03)",
+                        border: `1px solid ${favoriteVariant === i ? accent : "rgba(255,255,255,0.07)"}`,
+                        borderRadius: 8, cursor: "pointer", transition: "all 0.15s",
+                      }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: accent, fontFamily: "'DM Mono', monospace" }}>
+                            {s.variantLabel(i + 1)}
+                          </span>
+                          {favoriteVariant === i && <span style={{ fontSize: 12, color: accent }}>&#9733;</span>}
+                        </div>
+                        <p style={{ margin: 0, fontSize: 11, color: "#E2E8F0", lineHeight: 1.4 }}>{v.headline}</p>
+                        <p style={{ margin: "4px 0 0", fontSize: 10, color: "#6B7280" }}>{v.cta}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* HISTORY TOGGLE */}
+                <button onClick={() => setShowHistory(!showHistory)} style={{
+                  width: "100%", padding: "8px", marginTop: 10,
+                  background: "none",
+                  border: "1px solid rgba(255,255,255,0.06)",
+                  borderRadius: 8, fontSize: 11, fontWeight: 500,
+                  color: "rgba(255,255,255,0.35)", cursor: "pointer",
+                  fontFamily: "'DM Sans', sans-serif",
+                }}>
+                  {s.historyTitle} ({history.length})
+                </button>
               </div>
             )}
 
-            {!result && !loading && (
+            {/* HISTORY PANEL */}
+            {showHistory && (
+              <div style={{
+                marginTop: 10, padding: "12px",
+                background: "rgba(255,255,255,0.02)",
+                border: "1px solid rgba(255,255,255,0.06)",
+                borderRadius: 10, maxHeight: 250, overflowY: "auto",
+                animation: "fadeUp 0.3s ease",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.4)", fontFamily: "'DM Mono', monospace", letterSpacing: "0.1em", textTransform: "uppercase" }}>{s.historyTitle}</span>
+                  {history.length > 0 && (
+                    <button onClick={handleClearHistory} style={{
+                      background: "none", border: "none", fontSize: 10,
+                      color: "#F87171", cursor: "pointer", fontFamily: "'DM Sans', sans-serif",
+                    }}>{s.clearHistory}</button>
+                  )}
+                </div>
+                {history.length === 0 && (
+                  <p style={{ fontSize: 11, color: "rgba(255,255,255,0.2)", margin: 0, textAlign: "center", padding: "12px 0" }}>{s.noHistory}</p>
+                )}
+                {history.map((h) => {
+                  const plat = PLATFORMS.find(p => p.id === h.platform);
+                  return (
+                    <button key={h.id} onClick={() => restoreFromHistory(h)} style={{
+                      width: "100%", padding: "8px 10px", marginBottom: 4,
+                      background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)",
+                      borderRadius: 6, cursor: "pointer", textAlign: "left",
+                      display: "flex", alignItems: "center", gap: 8,
+                    }}>
+                      <span style={{ fontSize: 14 }}>{plat?.icon || ""}</span>
+                      <div style={{ flex: 1, overflow: "hidden" }}>
+                        <div style={{ fontSize: 11, color: "#E2E8F0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{h.brand}</div>
+                        <div style={{ fontSize: 9, color: "rgba(255,255,255,0.25)", fontFamily: "'DM Mono', monospace" }}>
+                          {h.tone} &middot; {new Date(h.timestamp).toLocaleDateString()}
+                        </div>
+                      </div>
+                      {h.usedAI && <span style={{ fontSize: 8, color: "#4ADE80", fontFamily: "'DM Mono', monospace", border: "1px solid rgba(74,222,128,0.25)", borderRadius: 3, padding: "1px 4px" }}>AI</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {!result && !loading && !showHistory && (
               <div style={{
                 height: 200, display: "flex", flexDirection: "column",
                 alignItems: "center", justifyContent: "center",
@@ -1166,7 +2291,7 @@ export default function ContentGenerator() {
               }}>
                 <p style={{ fontSize: 28, margin: "0 0 8px" }}>✦</p>
                 <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)", margin: 0, fontFamily: "'DM Mono', monospace", letterSpacing: "0.08em" }}>
-                  EL CONTENIDO APARECERÁ AQUÍ
+                  {s.emptyState}
                 </p>
               </div>
             )}
@@ -1181,7 +2306,18 @@ export default function ContentGenerator() {
         </div>
       </div>
     </div>
-    <ContactBar />
+    <ContactBar s={s} />
+
+    {/* ── ONBOARDING TOUR OVERLAY ── */}
+    {tourActive && <TourOverlay
+      step={tourStep}
+      t={tourT}
+      tourLang={tourLang}
+      setTourLang={setTourLang}
+      onNext={tourNext}
+      onSkip={endTour}
+      refs={{ platformRef, toneFormatRef, brandRef, generateBtnRef, resultCopyRef, resultVisualRef, variantBtnRef }}
+    />}
     </>
   );
 }

@@ -1,40 +1,109 @@
 import { useState } from "react";
 
-// ─── PLATAFORMAS ──────────────────────────────────────────────────────────────
-const PLATFORMS = [
-  { id: "instagram", label: "Instagram", icon: "📸", dims: "1080×1080", ratio: "1:1" },
-  { id: "twitter",   label: "Twitter/X",  icon: "𝕏",  dims: "1200×675",  ratio: "16:9" },
-  { id: "linkedin",  label: "LinkedIn",   icon: "💼", dims: "1200×627",  ratio: "1.91:1" },
-  { id: "facebook",  label: "Facebook",   icon: "👥", dims: "1200×630",  ratio: "1.91:1" },
-];
-
-const TONES = ["Profesional", "Inspirador", "Urgente", "Divertido", "Minimalista"];
-const FORMATS = ["Producto", "Servicio", "Evento", "Oferta", "Branding"];
-
-// ─── SYSTEM PROMPT ─────────────────────────────────────────────────────────────
-const buildSystemPrompt = (platform, tone, format) => `
-Eres un experto en marketing digital y copywriting. Generas contenido de alta conversión para redes sociales.
+// ─── TRANSLATIONS ────────────────────────────────────────────────────────────
+const t = {
+  es: {
+    headerSub: "Genera copy + visual para redes sociales en segundos",
+    productLabel: "Producto o Servicio",
+    placeholder: "Ej: App de meditaci\u00f3n para profesionales con IA adaptativa, reduce el estr\u00e9s en 10 minutos al d\u00eda...",
+    platformLabel: "Plataforma",
+    toneLabel: "Tono",
+    formatLabel: "Formato",
+    tones: ["Profesional", "Inspirador", "Urgente", "Divertido", "Minimalista"],
+    formats: ["Producto", "Servicio", "Evento", "Oferta", "Branding"],
+    generateBtn: "Generar Contenido",
+    generatingBtn: "Generando contenido...",
+    generatingVisual: "Generando visual...",
+    defaultHeadline: "Tu contenido aqu\u00ed",
+    copied: "Copiado",
+    copy: "Copiar",
+    errorMsg: "Error generando contenido. Verifica tu conexi\u00f3n e intenta de nuevo.",
+    previewLabel: "Vista Previa",
+    bodyLabel: "Cuerpo",
+    colorPalette: "Paleta de Colores",
+    dallePromptLabel: "Prompt DALL-E 3",
+    bestTime: "Mejor Momento para Publicar",
+    tip: "Integra este generador con Make.com para programar publicaciones autom\u00e1ticas en Buffer o Hootsuite directamente desde el flujo de trabajo.",
+    emptyState: "EL CONTENIDO APARECER\u00c1 AQU\u00cd",
+    userMsg: (brand) => `Genera contenido de marketing para: ${brand}`,
+    systemPrompt: (platform, tone, format) => `
+Eres un experto en marketing digital y copywriting. Generas contenido de alta conversi\u00f3n para redes sociales.
 
 Plataforma objetivo: ${platform}
 Tono deseado: ${tone}
 Tipo de contenido: ${format}
 
-Responde ÚNICAMENTE con un JSON válido con esta estructura exacta (sin markdown, sin texto extra):
+Responde \u00daNICAMENTE con un JSON v\u00e1lido con esta estructura exacta (sin markdown, sin texto extra):
 {
-  "headline": "Título principal impactante (máx 10 palabras)",
-  "subheadline": "Subtítulo que complementa (máx 15 palabras)",
+  "headline": "T\u00edtulo principal impactante (m\u00e1x 10 palabras)",
+  "subheadline": "Subt\u00edtulo que complementa (m\u00e1x 15 palabras)",
   "body": "Cuerpo del mensaje persuasivo (2-3 oraciones)",
-  "cta": "Llamada a la acción (máx 5 palabras)",
+  "cta": "Llamada a la acci\u00f3n (m\u00e1x 5 palabras)",
   "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"],
   "emoji_set": ["emoji1", "emoji2", "emoji3"],
   "dalle_prompt": "Detailed image generation prompt in English for DALL-E 3, describing a professional marketing visual for this content. Include style, lighting, composition. Minimum 50 words.",
   "color_palette": ["#hexcode1", "#hexcode2", "#hexcode3"],
-  "posting_time": "Mejor hora para publicar y por qué (1 oración)"
+  "posting_time": "Mejor hora para publicar y por qu\u00e9 (1 oraci\u00f3n)"
 }
-`;
+`,
+  },
+  en: {
+    headerSub: "Generate copy + visuals for social media in seconds",
+    productLabel: "Product or Service",
+    placeholder: "E.g.: Meditation app for professionals with adaptive AI, reduces stress in 10 minutes a day...",
+    platformLabel: "Platform",
+    toneLabel: "Tone",
+    formatLabel: "Format",
+    tones: ["Professional", "Inspirational", "Urgent", "Fun", "Minimalist"],
+    formats: ["Product", "Service", "Event", "Offer", "Branding"],
+    generateBtn: "Generate Content",
+    generatingBtn: "Generating content...",
+    generatingVisual: "Generating visual...",
+    defaultHeadline: "Your content here",
+    copied: "Copied",
+    copy: "Copy",
+    errorMsg: "Error generating content. Check your connection and try again.",
+    previewLabel: "Preview",
+    bodyLabel: "Body",
+    colorPalette: "Color Palette",
+    dallePromptLabel: "DALL-E 3 Prompt",
+    bestTime: "Best Time to Post",
+    tip: "Integrate this generator with Make.com to schedule automatic posts on Buffer or Hootsuite directly from the workflow.",
+    emptyState: "CONTENT WILL APPEAR HERE",
+    userMsg: (brand) => `Generate marketing content for: ${brand}`,
+    systemPrompt: (platform, tone, format) => `
+You are an expert in digital marketing and copywriting. You generate high-conversion content for social media.
+
+Target platform: ${platform}
+Desired tone: ${tone}
+Content type: ${format}
+
+Respond ONLY with valid JSON using this exact structure (no markdown, no extra text):
+{
+  "headline": "Impactful main headline (max 10 words)",
+  "subheadline": "Complementary subheadline (max 15 words)",
+  "body": "Persuasive message body (2-3 sentences)",
+  "cta": "Call to action (max 5 words)",
+  "hashtags": ["hashtag1", "hashtag2", "hashtag3", "hashtag4", "hashtag5"],
+  "emoji_set": ["emoji1", "emoji2", "emoji3"],
+  "dalle_prompt": "Detailed image generation prompt in English for DALL-E 3, describing a professional marketing visual for this content. Include style, lighting, composition. Minimum 50 words.",
+  "color_palette": ["#hexcode1", "#hexcode2", "#hexcode3"],
+  "posting_time": "Best time to post and why (1 sentence)"
+}
+`,
+  },
+};
+
+// ─── PLATAFORMAS ──────────────────────────────────────────────────────────────
+const PLATFORMS = [
+  { id: "instagram", label: "Instagram", icon: "\ud83d\udcf8", dims: "1080\u00d71080", ratio: "1:1" },
+  { id: "twitter",   label: "Twitter/X",  icon: "\ud835\udd4f",  dims: "1200\u00d7675",  ratio: "16:9" },
+  { id: "linkedin",  label: "LinkedIn",   icon: "\ud83d\udcbc", dims: "1200\u00d7627",  ratio: "1.91:1" },
+  { id: "facebook",  label: "Facebook",   icon: "\ud83d\udc65", dims: "1200\u00d7630",  ratio: "1.91:1" },
+];
 
 // ─── MOCK VISUAL (simula imagen DALL-E con gradiente basado en colores) ────────
-function MockVisual({ colors, headline, platform, loading }) {
+function MockVisual({ colors, headline, platform, loading, strings }) {
   const ratio = PLATFORMS.find(p => p.id === platform)?.ratio || "1:1";
   const [w, h] = ratio === "1:1" ? [1, 1] : ratio === "16:9" ? [16, 9] : [1.91, 1];
   const paddingBottom = `${(h / w) * 100}%`;
@@ -60,7 +129,7 @@ function MockVisual({ colors, headline, platform, loading }) {
               margin: "0 auto 12px",
             }} />
             <p style={{ color: "rgba(255,255,255,0.4)", fontSize: 12, fontFamily: "sans-serif", margin: 0 }}>
-              Generando visual...
+              {strings.generatingVisual}
             </p>
           </div>
         ) : (
@@ -77,7 +146,7 @@ function MockVisual({ colors, headline, platform, loading }) {
                 textShadow: "0 2px 20px rgba(0,0,0,0.5)",
                 margin: "0 0 8px", lineHeight: 1.3,
               }}>
-                {headline || "Tu contenido aquí"}
+                {headline || strings.defaultHeadline}
               </p>
               <div style={{
                 fontSize: 10, color: "rgba(255,255,255,0.4)",
@@ -96,7 +165,7 @@ function MockVisual({ colors, headline, platform, loading }) {
 }
 
 // ─── COPY CARD ────────────────────────────────────────────────────────────────
-function CopyCard({ label, content, accent }) {
+function CopyCard({ label, content, accent, strings }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
     navigator.clipboard.writeText(Array.isArray(content) ? content.join(" ") : content);
@@ -121,7 +190,7 @@ function CopyCard({ label, content, accent }) {
           fontSize: 11, color: copied ? "#4ADE80" : "rgba(255,255,255,0.3)",
           fontFamily: "sans-serif", transition: "color 0.2s",
         }}>
-          {copied ? "✓ Copiado" : "Copiar"}
+          {copied ? `\u2713 ${strings.copied}` : strings.copy}
         </button>
       </div>
       <p style={{
@@ -136,14 +205,18 @@ function CopyCard({ label, content, accent }) {
 
 // ─── APP PRINCIPAL ─────────────────────────────────────────────────────────────
 export default function ContentGenerator() {
+  const [lang, setLang] = useState("es");
   const [brand, setBrand] = useState("");
   const [platform, setPlatform] = useState("instagram");
-  const [tone, setTone] = useState("Profesional");
-  const [format, setFormat] = useState("Producto");
+  const [tone, setTone] = useState(0);
+  const [format, setFormat] = useState(0);
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState("copy");
+
+  const s = t[lang];
+  const accent = "#E8C547";
 
   const generate = async () => {
     if (!brand.trim()) return;
@@ -158,8 +231,8 @@ export default function ContentGenerator() {
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 1000,
-          system: buildSystemPrompt(platform, tone, format),
-          messages: [{ role: "user", content: `Genera contenido de marketing para: ${brand}` }],
+          system: s.systemPrompt(platform, s.tones[tone], s.formats[format]),
+          messages: [{ role: "user", content: s.userMsg(brand) }],
         }),
       });
 
@@ -170,14 +243,13 @@ export default function ContentGenerator() {
       setResult(parsed);
       setActiveTab("copy");
     } catch (e) {
-      setError("Error generando contenido. Verifica tu conexión e intenta de nuevo.");
+      setError(s.errorMsg);
     } finally {
       setLoading(false);
     }
   };
 
   const selectedPlatform = PLATFORMS.find(p => p.id === platform);
-  const accent = "#E8C547";
 
   return (
     <div style={{
@@ -221,9 +293,42 @@ export default function ContentGenerator() {
               color: accent, border: `1px solid ${accent}40`,
               borderRadius: 4, padding: "3px 8px", letterSpacing: "0.1em",
             }}>AI-POWERED</span>
+
+            {/* LANGUAGE TOGGLE */}
+            <div style={{
+              marginLeft: "auto",
+              display: "flex",
+              background: "rgba(255,255,255,0.05)",
+              borderRadius: 6,
+              border: "1px solid rgba(255,255,255,0.08)",
+              overflow: "hidden",
+            }}>
+              <button onClick={() => setLang("es")} style={{
+                background: lang === "es" ? `${accent}20` : "transparent",
+                border: "none",
+                padding: "5px 12px",
+                fontSize: 12,
+                fontWeight: lang === "es" ? 700 : 400,
+                color: lang === "es" ? accent : "rgba(255,255,255,0.35)",
+                cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif",
+                transition: "all 0.2s",
+              }}>ES</button>
+              <button onClick={() => setLang("en")} style={{
+                background: lang === "en" ? `${accent}20` : "transparent",
+                border: "none",
+                padding: "5px 12px",
+                fontSize: 12,
+                fontWeight: lang === "en" ? 700 : 400,
+                color: lang === "en" ? accent : "rgba(255,255,255,0.35)",
+                cursor: "pointer",
+                fontFamily: "'DM Sans', sans-serif",
+                transition: "all 0.2s",
+              }}>EN</button>
+            </div>
           </div>
           <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.35)", letterSpacing: "0.03em" }}>
-            Genera copy + visual para redes sociales en segundos · Claude API + DALL-E 3
+            {s.headerSub} &middot; Claude API + DALL-E 3
           </p>
         </div>
 
@@ -239,12 +344,12 @@ export default function ContentGenerator() {
                 color: "rgba(255,255,255,0.4)", fontFamily: "'DM Mono', monospace",
                 marginBottom: 8,
               }}>
-                Producto o Servicio
+                {s.productLabel}
               </label>
               <textarea
                 value={brand}
                 onChange={e => setBrand(e.target.value)}
-                placeholder="Ej: App de meditación para profesionales con IA adaptativa, reduce el estrés en 10 minutos al día..."
+                placeholder={s.placeholder}
                 rows={4}
                 style={{
                   width: "100%", background: "rgba(255,255,255,0.04)",
@@ -266,7 +371,7 @@ export default function ContentGenerator() {
                 letterSpacing: "0.12em", textTransform: "uppercase",
                 color: "rgba(255,255,255,0.4)", fontFamily: "'DM Mono', monospace",
                 marginBottom: 8,
-              }}>Plataforma</label>
+              }}>{s.platformLabel}</label>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                 {PLATFORMS.map(p => (
                   <button key={p.id} onClick={() => setPlatform(p.id)} style={{
@@ -293,8 +398,8 @@ export default function ContentGenerator() {
             {/* Tono y Formato */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 20 }}>
               {[
-                { label: "Tono", options: TONES, value: tone, setter: setTone },
-                { label: "Formato", options: FORMATS, value: format, setter: setFormat },
+                { label: s.toneLabel, options: s.tones, value: tone, setter: setTone },
+                { label: s.formatLabel, options: s.formats, value: format, setter: setFormat },
               ].map(({ label, options, value, setter }) => (
                 <div key={label}>
                   <label style={{
@@ -304,12 +409,12 @@ export default function ContentGenerator() {
                     marginBottom: 8,
                   }}>{label}</label>
                   <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                    {options.map(o => (
-                      <button key={o} onClick={() => setter(o)} style={{
-                        background: value === o ? `${accent}15` : "none",
-                        border: `1px solid ${value === o ? accent : "rgba(255,255,255,0.07)"}`,
+                    {options.map((o, i) => (
+                      <button key={i} onClick={() => setter(i)} style={{
+                        background: value === i ? `${accent}15` : "none",
+                        border: `1px solid ${value === i ? accent : "rgba(255,255,255,0.07)"}`,
                         borderRadius: 6, padding: "6px 10px",
-                        fontSize: 12, color: value === o ? accent : "#6B7280",
+                        fontSize: 12, color: value === i ? accent : "#6B7280",
                         cursor: "pointer", textAlign: "left",
                         fontFamily: "'DM Sans', sans-serif",
                         transition: "all 0.15s",
@@ -320,7 +425,7 @@ export default function ContentGenerator() {
               ))}
             </div>
 
-            {/* Botón Generar */}
+            {/* Generate Button */}
             <button
               onClick={generate}
               disabled={!brand.trim() || loading}
@@ -339,7 +444,7 @@ export default function ContentGenerator() {
                 boxShadow: brand.trim() && !loading ? `0 0 24px ${accent}40` : "none",
               }}
             >
-              {loading ? "⚡ Generando contenido..." : "⚡ Generar Contenido"}
+              {loading ? `\u26a1 ${s.generatingBtn}` : `\u26a1 ${s.generateBtn}`}
             </button>
 
             {error && (
@@ -357,7 +462,7 @@ export default function ContentGenerator() {
                   textTransform: "uppercase", color: "rgba(255,255,255,0.4)",
                   fontFamily: "'DM Mono', monospace",
                 }}>
-                  Vista Previa · {selectedPlatform?.label}
+                  {s.previewLabel} &middot; {selectedPlatform?.label}
                 </label>
                 {result && (
                   <span style={{ fontSize: 10, color: accent, fontFamily: "'DM Mono', monospace" }}>
@@ -370,6 +475,7 @@ export default function ContentGenerator() {
                 headline={result?.headline}
                 platform={platform}
                 loading={loading}
+                strings={s}
               />
               {result && (
                 <div style={{
@@ -407,11 +513,11 @@ export default function ContentGenerator() {
 
                 {activeTab === "copy" && (
                   <div>
-                    <CopyCard label="Headline" content={result.headline} accent={accent} />
-                    <CopyCard label="Subheadline" content={result.subheadline} accent={accent} />
-                    <CopyCard label="Cuerpo" content={result.body} accent={accent} />
-                    <CopyCard label="CTA" content={result.cta} accent={accent} />
-                    <CopyCard label="Hashtags" content={result.hashtags} accent={accent} />
+                    <CopyCard label="Headline" content={result.headline} accent={accent} strings={s} />
+                    <CopyCard label="Subheadline" content={result.subheadline} accent={accent} strings={s} />
+                    <CopyCard label={s.bodyLabel} content={result.body} accent={accent} strings={s} />
+                    <CopyCard label="CTA" content={result.cta} accent={accent} strings={s} />
+                    <CopyCard label="Hashtags" content={result.hashtags} accent={accent} strings={s} />
                   </div>
                 )}
 
@@ -423,7 +529,7 @@ export default function ContentGenerator() {
                       borderRadius: 10, padding: "14px 16px", marginBottom: 10,
                     }}>
                       <p style={{ margin: "0 0 10px", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: accent, fontFamily: "'DM Mono', monospace" }}>
-                        Paleta de Colores
+                        {s.colorPalette}
                       </p>
                       <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
                         {result.color_palette?.map((c, i) => (
@@ -445,7 +551,7 @@ export default function ContentGenerator() {
                       borderRadius: 10, padding: "14px 16px",
                     }}>
                       <p style={{ margin: "0 0 8px", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: accent, fontFamily: "'DM Mono', monospace" }}>
-                        Prompt DALL-E 3
+                        {s.dallePromptLabel}
                       </p>
                       <p style={{ margin: 0, fontSize: 12, color: "#9CA3AF", lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif" }}>
                         {result.dalle_prompt}
@@ -461,14 +567,14 @@ export default function ContentGenerator() {
                     borderRadius: 10, padding: "16px",
                   }}>
                     <p style={{ margin: "0 0 8px", fontSize: 10, fontWeight: 700, letterSpacing: "0.12em", textTransform: "uppercase", color: accent, fontFamily: "'DM Mono', monospace" }}>
-                      Mejor Momento para Publicar
+                      {s.bestTime}
                     </p>
                     <p style={{ margin: 0, fontSize: 13, color: "#E2E8F0", lineHeight: 1.65 }}>
                       {result.posting_time}
                     </p>
                     <div style={{ marginTop: 16, padding: "12px", background: "rgba(232,197,71,0.06)", borderRadius: 8, border: "1px solid rgba(232,197,71,0.12)" }}>
                       <p style={{ margin: 0, fontSize: 11, color: "rgba(255,255,255,0.4)", lineHeight: 1.6 }}>
-                        💡 <strong style={{ color: accent }}>Tip:</strong> Integra este generador con Make.com para programar publicaciones automáticas en Buffer o Hootsuite directamente desde el flujo de trabajo.
+                        <strong style={{ color: accent }}>Tip:</strong> {s.tip}
                       </p>
                     </div>
                   </div>
@@ -483,9 +589,9 @@ export default function ContentGenerator() {
                 border: "1px dashed rgba(255,255,255,0.08)",
                 borderRadius: 10,
               }}>
-                <p style={{ fontSize: 28, margin: "0 0 8px" }}>✦</p>
+                <p style={{ fontSize: 28, margin: "0 0 8px" }}>&#10022;</p>
                 <p style={{ fontSize: 12, color: "rgba(255,255,255,0.2)", margin: 0, fontFamily: "'DM Mono', monospace", letterSpacing: "0.08em" }}>
-                  EL CONTENIDO APARECERÁ AQUÍ
+                  {s.emptyState}
                 </p>
               </div>
             )}
@@ -495,7 +601,7 @@ export default function ContentGenerator() {
         {/* FOOTER */}
         <div style={{ marginTop: 24, textAlign: "center" }}>
           <p style={{ fontSize: 10, color: "rgba(255,255,255,0.12)", fontFamily: "'DM Mono', monospace", letterSpacing: "0.1em" }}>
-            CLAUDE API · DALL-E 3 · MAKE.COM INTEGRATION READY
+            CLAUDE API &middot; DALL-E 3 &middot; MAKE.COM INTEGRATION READY
           </p>
         </div>
       </div>
