@@ -107,6 +107,9 @@ const UI = {
     aiBadge: "IA",
     aiToolUseBadge: "IA Tool Use",
     templateBadge: "Smart Templates",
+    agenticBadge: "\ud83e\udd16 Ag\u00e9ntico",
+    agenticMode: "Modo Ag\u00e9ntico",
+    pipelineTitle: "Pipeline IA (5 agentes)",
     historyTitle: "Historial",
     clearHistory: "Limpiar historial",
     noHistory: "Sin historial",
@@ -167,6 +170,9 @@ const UI = {
     aiBadge: "AI",
     aiToolUseBadge: "AI Tool Use",
     templateBadge: "Smart Templates",
+    agenticBadge: "\ud83e\udd16 Agentic",
+    agenticMode: "Agentic Mode",
+    pipelineTitle: "AI Pipeline (5 agents)",
     historyTitle: "History",
     clearHistory: "Clear history",
     noHistory: "No history yet",
@@ -1178,6 +1184,242 @@ async function generateWithClaude(apiKey, brandDesc, platform, tone, format, lan
   }
 }
 
+// ─── AGENTIC PIPELINE (local, no API) ────────────────────────────────────────
+
+function analyzeBrand(text, lang) {
+  const lower = text.toLowerCase();
+
+  const productTypes = {
+    app: /\b(app|aplicaci[oó]n|software|plataforma|platform|tool|herramienta)\b/i,
+    service: /\b(servicio|service|consultor[ií]a|consulting|agencia|agency)\b/i,
+    product: /\b(producto|product|dispositivo|device|equipo|equipment)\b/i,
+    course: /\b(curso|course|programa|program|capacitaci[oó]n|training)\b/i,
+    ecommerce: /\b(tienda|store|shop|marketplace|comercio)\b/i,
+  };
+
+  let productType = 'general';
+  for (const [type, regex] of Object.entries(productTypes)) {
+    if (regex.test(text)) { productType = type; break; }
+  }
+
+  const valueProps = [];
+  const vpPatterns = [
+    /(?:que|that|which)\s+(.{10,80}?)(?:\.|,|$)/gi,
+    /(?:permite|allows|enables|helps|ayuda)\s+(.{10,60}?)(?:\.|,|$)/gi,
+    /(?:con|with)\s+(.{10,60}?)(?:\.|,|$)/gi,
+  ];
+  vpPatterns.forEach(p => {
+    const matches = [...text.matchAll(p)];
+    matches.forEach(m => valueProps.push(m[1].trim()));
+  });
+
+  const metrics = [];
+  const metricPatterns = [
+    /(\d+)\s*(%|por\s*ciento|percent)/gi,
+    /(\d+)\s*(minutos?|minutes?|horas?|hours?|d[ií]as?|days?|segundos?|seconds?)/gi,
+    /(\d+)\s*(usuarios?|users?|clientes?|clients?|empresas?|companies?)/gi,
+    /\$\s*([\d,.]+)/gi,
+  ];
+  metricPatterns.forEach(p => {
+    const matches = [...text.matchAll(p)];
+    matches.forEach(m => metrics.push(m[0].trim()));
+  });
+
+  const emotionalTriggers = {
+    es: { urgency: ['rápido','inmediato','ahora','ya','urgente'], trust: ['seguro','confiable','certificado','probado','garantizado'], innovation: ['innovador','revolucionario','único','primero','avanzado'], ease: ['fácil','simple','sencillo','intuitivo','automático'], results: ['resultados','impacto','crecimiento','éxito','mejora'] },
+    en: { urgency: ['fast','immediate','now','instant','quick'], trust: ['secure','reliable','certified','proven','guaranteed'], innovation: ['innovative','revolutionary','unique','first','advanced'], ease: ['easy','simple','intuitive','automatic','effortless'], results: ['results','impact','growth','success','improvement'] }
+  };
+
+  const triggers = [];
+  const triggerWords = emotionalTriggers[lang] || emotionalTriggers.en;
+  for (const [category, words] of Object.entries(triggerWords)) {
+    if (words.some(w => lower.includes(w))) triggers.push(category);
+  }
+
+  const audienceMatch = text.match(/(?:para|for)\s+(.{5,50}?)(?:\s+(?:que|con|with|that)|,|\.|$)/i);
+  const audience = audienceMatch ? audienceMatch[1].trim() : '';
+
+  return { productType, valueProps, metrics, triggers, audience, productName: text.split(/[.,\n]/).at(0)?.trim().slice(0, 50) || text.slice(0, 50) };
+}
+
+function profileAudience(analysis, lang) {
+  const { audience, productType, triggers } = analysis;
+
+  const painPoints = {
+    app: { es: ['falta de tiempo', 'procesos manuales', 'desorganización'], en: ['lack of time', 'manual processes', 'disorganization'] },
+    service: { es: ['necesidad de expertise', 'resultados lentos', 'costos altos'], en: ['need for expertise', 'slow results', 'high costs'] },
+    product: { es: ['baja calidad', 'opciones limitadas', 'precio alto'], en: ['low quality', 'limited options', 'high price'] },
+    course: { es: ['falta de conocimiento', 'habilidades desactualizadas', 'competencia'], en: ['lack of knowledge', 'outdated skills', 'competition'] },
+    ecommerce: { es: ['experiencia de compra pobre', 'poca variedad', 'precios altos'], en: ['poor shopping experience', 'limited variety', 'high prices'] },
+    general: { es: ['ineficiencia', 'falta de soluciones', 'oportunidades perdidas'], en: ['inefficiency', 'lack of solutions', 'missed opportunities'] },
+  };
+
+  const desires = {
+    urgency: { es: 'resultados inmediatos', en: 'immediate results' },
+    trust: { es: 'seguridad y confianza', en: 'security and trust' },
+    innovation: { es: 'estar a la vanguardia', en: 'staying ahead' },
+    ease: { es: 'simplicidad y ahorro de tiempo', en: 'simplicity and time savings' },
+    results: { es: 'impacto medible', en: 'measurable impact' },
+  };
+
+  const topDesires = triggers.map(t => desires[t]?.[lang] || desires[t]?.en).filter(Boolean);
+
+  return {
+    audience: audience || (lang === 'es' ? 'profesionales y empresas' : 'professionals and businesses'),
+    painPoints: painPoints[productType]?.[lang] || painPoints.general[lang],
+    desires: topDesires.length ? topDesires : [lang === 'es' ? 'soluciones efectivas' : 'effective solutions'],
+    buyingStage: triggers.includes('urgency') ? 'ready-to-buy' : 'consideration',
+  };
+}
+
+function suggestPositioning(analysis, platform, lang) {
+  const { productType, metrics, triggers, valueProps } = analysis;
+
+  const platformAngles = {
+    instagram: { es: 'visual + emocional — muestra el resultado, no el proceso', en: 'visual + emotional — show the result, not the process' },
+    'twitter/x': { es: 'dato impactante + CTA directo — máximo 280 caracteres de impacto', en: 'impactful stat + direct CTA — maximum 280 characters of impact' },
+    twitter: { es: 'dato impactante + CTA directo — máximo 280 caracteres de impacto', en: 'impactful stat + direct CTA — maximum 280 characters of impact' },
+    linkedin: { es: 'credibilidad + datos — posiciona como líder de industria', en: 'credibility + data — position as industry leader' },
+    facebook: { es: 'historia + comunidad — conecta emocionalmente con tu audiencia', en: 'story + community — connect emotionally with your audience' },
+  };
+
+  const angle = platformAngles[platform.toLowerCase()]?.[lang] || platformAngles.instagram[lang];
+
+  let hookType = 'benefit';
+  if (metrics.length > 0) hookType = 'statistic';
+  else if (triggers.includes('urgency')) hookType = 'urgency';
+  else if (triggers.includes('trust')) hookType = 'social-proof';
+  else if (valueProps.length > 0) hookType = 'transformation';
+
+  return { angle, hookType, differentiator: valueProps[0] || (lang === 'es' ? 'solución única en el mercado' : 'unique market solution') };
+}
+
+function generateIntelligentCopy(brand, audience, positioning, platform, tone, format, lang) {
+  const { productName, metrics, valueProps, triggers } = brand;
+  const { painPoints, desires, buyingStage } = audience;
+  const { hookType, differentiator } = positioning;
+
+  const headlines = {
+    statistic: {
+      es: metrics[0] ? `${productName}: ${metrics[0]} que lo cambian todo` : `${productName}: Los números hablan`,
+      en: metrics[0] ? `${productName}: ${metrics[0]} that changes everything` : `${productName}: The numbers speak`,
+    },
+    urgency: {
+      es: `No esperes más: ${productName} está aquí`,
+      en: `Don't wait: ${productName} is here`,
+    },
+    'social-proof': {
+      es: `Miles ya confían en ${productName}`,
+      en: `Thousands already trust ${productName}`,
+    },
+    transformation: {
+      es: valueProps[0] ? `De ${painPoints[0]} a ${desires[0]} con ${productName}` : `Transforma tu día con ${productName}`,
+      en: valueProps[0] ? `From ${painPoints[0]} to ${desires[0]} with ${productName}` : `Transform your day with ${productName}`,
+    },
+    benefit: {
+      es: `${productName}: ${desires[0] || 'la solución que necesitas'}`,
+      en: `${productName}: ${desires[0] || 'the solution you need'}`,
+    },
+  };
+
+  const headline = headlines[hookType]?.[lang] || headlines.benefit[lang];
+
+  const bodyParts = [];
+  if (lang === 'es') {
+    if (painPoints[0]) bodyParts.push(`¿Cansado de ${painPoints[0]}?`);
+    bodyParts.push(`${productName} ${valueProps[0] ? valueProps[0] : 'te ofrece la solución que buscas'}.`);
+    if (metrics[0]) bodyParts.push(`Resultados comprobados: ${metrics[0]}.`);
+    if (differentiator && !bodyParts.some(p => p.includes(differentiator))) bodyParts.push(`Lo que nos diferencia: ${differentiator}.`);
+  } else {
+    if (painPoints[0]) bodyParts.push(`Tired of ${painPoints[0]}?`);
+    bodyParts.push(`${productName} ${valueProps[0] ? valueProps[0] : "offers the solution you've been looking for"}.`);
+    if (metrics[0]) bodyParts.push(`Proven results: ${metrics[0]}.`);
+    if (differentiator && !bodyParts.some(p => p.includes(differentiator))) bodyParts.push(`What sets us apart: ${differentiator}.`);
+  }
+
+  const ctas = {
+    'ready-to-buy': { es: `Empieza con ${productName} ahora`, en: `Start with ${productName} now` },
+    consideration: { es: `Descubre ${productName}`, en: `Discover ${productName}` },
+  };
+
+  const subheadline = lang === 'es'
+    ? (audience.audience ? `Diseñado para ${audience.audience}` : 'La solución inteligente')
+    : (audience.audience ? `Built for ${audience.audience}` : 'The smart solution');
+
+  return {
+    headline,
+    subheadline,
+    body: bodyParts.join(' '),
+    cta: ctas[buyingStage]?.[lang] || ctas.consideration[lang],
+  };
+}
+
+function optimizeForPlatform(copy, platform, lang) {
+  const p = platform.toLowerCase();
+  let { headline, subheadline, body, cta } = copy;
+
+  const limits = { 'twitter/x': { headline: 60, body: 200 }, twitter: { headline: 60, body: 200 }, instagram: { headline: 80, body: 300 }, linkedin: { headline: 100, body: 400 }, facebook: { headline: 80, body: 350 } };
+  const limit = limits[p] || limits.instagram;
+
+  if (headline.length > limit.headline) headline = headline.slice(0, limit.headline - 3) + '...';
+  if (body.length > limit.body) body = body.slice(0, limit.body - 3) + '...';
+
+  const emojis = { instagram: ['\u2728','\ud83d\ude80','\ud83d\udca1','\ud83c\udfaf','\u2b50'], twitter: ['\ud83d\udd25','\ud83d\udcaa','\ud83d\udcca','\ud83c\udfaf','\u26a1'], linkedin: ['\ud83d\udcc8','\ud83d\udcbc','\ud83c\udfc6','\ud83d\udd11','\ud83d\udca1'], facebook: ['\u2764\ufe0f','\ud83d\ude4c','\u2705','\ud83c\udf89','\ud83d\udc47'] };
+  const platformEmojis = emojis[p] || emojis.instagram;
+  const emoji = platformEmojis[Math.floor(Math.random() * platformEmojis.length)];
+
+  return { ...copy, headline: `${emoji} ${headline}`, body, cta, subheadline, _optimizedFor: platform };
+}
+
+function agenticGenerate(brandText, platform, tone, format, lang) {
+  try {
+    const brandAnalysis = analyzeBrand(brandText, lang);
+    const audienceProfile = profileAudience(brandAnalysis, lang);
+    const positioning = suggestPositioning(brandAnalysis, platform, lang);
+    const copy = generateIntelligentCopy(brandAnalysis, audienceProfile, positioning, platform, tone, format, lang);
+    const optimized = optimizeForPlatform(copy, platform, lang);
+
+    // Augment with visual/timing data using existing smart generators
+    const parsed = parseBrand(brandText);
+    const seed = hashString(brandText + platform + tone + format);
+    const rng = createRng(seed);
+
+    let palettes;
+    if (tone === "Minimalista") {
+      palettes = TONE_PALETTE_ADJUSTMENTS.Minimalista;
+    } else {
+      palettes = INDUSTRY_PALETTES[parsed.detectedIndustry] || INDUSTRY_PALETTES.general;
+    }
+    const color_palette = pickRandom(shuffled(palettes, rng), rng);
+    const emojiOptions = EMOJI_SETS[tone] || EMOJI_SETS.Profesional;
+    const emoji_set = pickRandom(shuffled(emojiOptions, rng), rng);
+    const dalle_prompt = buildDallePrompt(parsed, platform, tone, color_palette, rng);
+    const times = POSTING_TIMES[platform] || POSTING_TIMES.instagram;
+    const posting_time = pickRandom(shuffled(times, rng), rng);
+    const hashtags = generateSmartHashtags(parsed, lang, platform, format, rng);
+
+    return {
+      ...optimized,
+      hashtags,
+      emoji_set,
+      dalle_prompt,
+      color_palette,
+      posting_time,
+      _source: 'agentic',
+      _pipeline: [
+        { agent: lang === 'es' ? 'Analizador de Marca' : 'Brand Analyzer', output: brandAnalysis },
+        { agent: lang === 'es' ? 'Perfilador de Audiencia' : 'Audience Profiler', output: audienceProfile },
+        { agent: lang === 'es' ? 'Estratega de Posicionamiento' : 'Positioning Strategist', output: positioning },
+        { agent: lang === 'es' ? 'Copywriter' : 'Copywriter', output: copy },
+        { agent: lang === 'es' ? 'Optimizador de Plataforma' : 'Platform Optimizer', output: optimized },
+      ],
+    };
+  } catch (e) {
+    console.warn('Agentic pipeline failed, falling back to templates:', e);
+    return null;
+  }
+}
+
 // ─── HISTORY HELPERS ────────────────────────────────────────────────────────
 const HISTORY_KEY = "cs_history";
 const MAX_HISTORY = 20;
@@ -1624,6 +1866,7 @@ export default function ContentGenerator() {
   const [showStats, setShowStats] = useState(false);
   const [stats, setStats] = useState(() => loadStats());
   const [exportOpen, setExportOpen] = useState(false);
+  const [showPipeline, setShowPipeline] = useState(false);
 
   // ── ONBOARDING TOUR STATE ──
   const [tourActive, setTourActive] = useState(true);
@@ -1701,9 +1944,15 @@ export default function ContentGenerator() {
       }
       if (generationIdRef.current !== currentGenId) return;
 
-      const finalResult = generateSmartContent(brand.trim().length >= BRAND_MIN ? brand : TOUR_TEXT[tourLang].sampleBrand, "instagram", "Profesional", "Producto", nextCount, tourLang);
+      const tourBrandText = brand.trim().length >= BRAND_MIN ? brand : TOUR_TEXT[tourLang].sampleBrand;
+      let finalResult = agenticGenerate(tourBrandText, "instagram", "Profesional", "Producto", tourLang);
+      if (!finalResult) {
+        finalResult = generateSmartContent(tourBrandText, "instagram", "Profesional", "Producto", nextCount, tourLang);
+        finalResult._source = 'templates';
+      }
       finalResult._toolUse = false;
       setUsedAI(false);
+      setContentSource(finalResult._source || 'agentic');
       setResult(finalResult);
       setActiveTab("copy");
       setLoading(false);
@@ -1738,6 +1987,9 @@ export default function ContentGenerator() {
       if (result) {
         const variantResults = [];
         for (let v = 0; v < 2; v++) {
+          const tourBrandV = (brand || TOUR_TEXT[tourLang].sampleBrand) + ` [v${v + 1}]`;
+          const agVar = agenticGenerate(tourBrandV, "instagram", "Profesional", "Producto", tourLang);
+          if (agVar) { variantResults.push({ ...agVar, source: "agentic" }); continue; }
           const varResult = generateSmartContent(brand || TOUR_TEXT[tourLang].sampleBrand, "instagram", "Profesional", "Producto", generationCount + 100 + v * 37, tourLang);
           variantResults.push({ ...varResult, source: "template" });
         }
@@ -1807,7 +2059,14 @@ export default function ContentGenerator() {
       if (hfResult) source = 'huggingface';
     }
 
-    // 3. Fallback to smart templates
+    // 3. Try Agentic Pipeline (local, always available — default when no API keys)
+    let agenticResult = null;
+    if (!claudeResult && !hfResult) {
+      agenticResult = agenticGenerate(brand, platform, tone, format, lang);
+      if (agenticResult) source = 'agentic';
+    }
+
+    // 4. Fallback to smart templates (only if agentic somehow fails)
     let finalResult;
     if (claudeResult) {
       aiUsed = true;
@@ -1815,6 +2074,9 @@ export default function ContentGenerator() {
     } else if (hfResult) {
       aiUsed = true;
       finalResult = hfResult;
+    } else if (agenticResult) {
+      finalResult = agenticResult;
+      source = 'agentic';
     } else {
       finalResult = generateSmartContent(brand, platform, tone, format, nextCount, lang);
       source = 'templates';
@@ -1884,7 +2146,7 @@ export default function ContentGenerator() {
 
   const exportJSON = () => {
     if (!result) return;
-    const obj = { platform, tone, format, brand: brand.substring(0, 100), generatedWith: contentSource === 'claude' ? "Claude AI" : contentSource === 'huggingface' ? "HF Mistral 7B" : "Smart Templates", ...result };
+    const obj = { platform, tone, format, brand: brand.substring(0, 100), generatedWith: contentSource === 'claude' ? "Claude AI" : contentSource === 'huggingface' ? "HF Mistral 7B" : contentSource === 'agentic' ? "Agentic Pipeline" : "Smart Templates", ...result };
     navigator.clipboard.writeText(JSON.stringify(obj, null, 2));
     showToast(lang === "es" ? "JSON copiado al portapapeles" : "JSON copied to clipboard");
     setExportOpen(false);
@@ -1907,7 +2169,7 @@ export default function ContentGenerator() {
       `**DALL-E Prompt:** ${result.dalle_prompt}`,
       "",
       `---`,
-      `*Generated with ContentStudio ${contentSource === 'claude' ? "(Claude AI)" : contentSource === 'huggingface' ? "(HF Mistral)" : "(Templates)"}*`,
+      `*Generated with ContentStudio ${contentSource === 'claude' ? "(Claude AI)" : contentSource === 'huggingface' ? "(HF Mistral)" : contentSource === 'agentic' ? "(Agentic Pipeline)" : "(Templates)"}*`,
     ].join("\n");
     navigator.clipboard.writeText(md);
     showToast(lang === "es" ? "Markdown copiado al portapapeles" : "Markdown copied to clipboard");
@@ -1927,6 +2189,9 @@ export default function ContentGenerator() {
       // Try HF second
       const hfVar = await generateWithHuggingFace(brand, platform, tone, format, lang, hfToken.trim() || null, null);
       if (hfVar) { variantResults.push({ ...hfVar, source: "huggingface" }); continue; }
+      // Try agentic (with slight variation via extra text)
+      const agVar = agenticGenerate(brand + ` [v${v + 1}]`, platform, tone, format, lang);
+      if (agVar) { variantResults.push({ ...agVar, source: "agentic" }); continue; }
       // Fallback to templates
       const varResult = generateSmartContent(brand, platform, tone, format, generationCount + 100 + v * 37, lang);
       variantResults.push({ ...varResult, source: "template" });
@@ -2046,21 +2311,21 @@ export default function ContentGenerator() {
             {!hasApiKey && !hasHfToken && (
               <span style={{
                 fontSize: 9, fontFamily: "'DM Mono', monospace",
-                color: "#6B7280",
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                color: "#F59E0B",
+                background: "rgba(245,158,11,0.1)",
+                border: "1px solid rgba(245,158,11,0.3)",
                 borderRadius: 4, padding: "3px 8px", letterSpacing: "0.08em",
-              }}>{lang === 'en' ? 'Templates Mode' : 'Modo Plantillas'}</span>
+              }}>{s.agenticBadge}</span>
             )}
             <span style={{
               fontSize: 9, fontFamily: "'DM Mono', monospace",
-              color: hasApiKey ? "#4ADE80" : hasHfToken ? "#F59E0B" : "#6B7280",
-              background: hasApiKey ? "rgba(74,222,128,0.1)" : hasHfToken ? "rgba(245,158,11,0.1)" : "rgba(255,255,255,0.05)",
-              border: `1px solid ${hasApiKey ? "rgba(74,222,128,0.3)" : hasHfToken ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.08)"}`,
+              color: hasApiKey ? "#4ADE80" : hasHfToken ? "#F59E0B" : "#F59E0B",
+              background: hasApiKey ? "rgba(74,222,128,0.1)" : hasHfToken ? "rgba(245,158,11,0.1)" : "rgba(245,158,11,0.1)",
+              border: `1px solid ${hasApiKey ? "rgba(74,222,128,0.3)" : hasHfToken ? "rgba(245,158,11,0.3)" : "rgba(245,158,11,0.3)"}`,
               borderRadius: 4, padding: "3px 8px", letterSpacing: "0.08em",
               cursor: "pointer",
             }} onClick={() => setShowStats(!showStats)}>
-              {hasApiKey ? s.aiMode : hasHfToken ? 'HF Mode' : s.templateMode} {stats.total > 0 ? `\u00b7 ${stats.total}` : ""}
+              {hasApiKey ? s.aiMode : hasHfToken ? 'HF Mode' : s.agenticMode} {stats.total > 0 ? `\u00b7 ${stats.total}` : ""}
             </span>
 
             {/* LANGUAGE TOGGLE */}
@@ -2097,7 +2362,7 @@ export default function ContentGenerator() {
             </div>
           </div>
           <p style={{ margin: 0, fontSize: 13, color: "rgba(255,255,255,0.35)", letterSpacing: "0.03em" }}>
-            {s.headerSub} &middot; Claude API + HF Inference + DALL-E 3
+            {s.headerSub} &middot; Claude API + HF + Agentic Pipeline + DALL-E 3
           </p>
         </div>
 
@@ -2405,19 +2670,24 @@ export default function ContentGenerator() {
                     fontFamily: "'DM Mono', monospace",
                     background: contentSource === 'claude' ? "rgba(74,222,128,0.12)"
                       : contentSource === 'huggingface' ? "rgba(245,158,11,0.12)"
+                      : contentSource === 'agentic' ? "rgba(245,158,11,0.12)"
                       : "rgba(255,255,255,0.05)",
                     color: contentSource === 'claude' ? "#4ADE80"
                       : contentSource === 'huggingface' ? "#F59E0B"
+                      : contentSource === 'agentic' ? "#F59E0B"
                       : "#6B7280",
                     border: `1px solid ${contentSource === 'claude' ? "rgba(74,222,128,0.25)"
                       : contentSource === 'huggingface' ? "rgba(245,158,11,0.25)"
+                      : contentSource === 'agentic' ? "rgba(245,158,11,0.25)"
                       : "rgba(255,255,255,0.08)"}`,
                   }}>
                     {contentSource === 'claude'
                       ? (result?._toolUse ? s.aiToolUseBadge : s.aiBadge)
                       : contentSource === 'huggingface'
                         ? (lang === 'en' ? 'HF Model' : 'Modelo HF')
-                        : s.templateBadge}
+                        : contentSource === 'agentic'
+                          ? s.agenticBadge
+                          : s.templateBadge}
                   </span>
                 </div>
                 <div style={{ display: "flex", gap: 4, marginBottom: 12 }}>
@@ -2509,6 +2779,42 @@ export default function ContentGenerator() {
                     </div>
                   )}
                 </div>
+
+                {/* Pipeline Visualization (agentic mode) */}
+                {result._pipeline && (
+                  <div style={{ marginTop: 16 }}>
+                    <button onClick={() => setShowPipeline(!showPipeline)} style={{
+                      background: "rgba(245,158,11,0.06)",
+                      border: "1px solid rgba(245,158,11,0.15)",
+                      borderRadius: 8, padding: "8px 14px",
+                      cursor: "pointer", width: "100%", textAlign: "left",
+                      fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 600,
+                      color: "#F59E0B", transition: "all 0.2s",
+                    }}>
+                      {showPipeline ? '\u25bc' : '\u25b6'} {s.pipelineTitle}
+                    </button>
+                    {showPipeline && (
+                      <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.6, marginTop: 8, animation: "fadeUp 0.3s ease" }}>
+                        {result._pipeline.map((step, i) => (
+                          <div key={i} style={{ padding: '8px 12px', borderBottom: '1px solid #1e293b', background: 'rgba(255,255,255,0.02)', borderRadius: i === 0 ? '8px 8px 0 0' : i === result._pipeline.length - 1 ? '0 0 8px 8px' : '0' }}>
+                            <strong style={{ color: '#E8C547', fontFamily: "'DM Mono', monospace", fontSize: 10, letterSpacing: '0.05em' }}>
+                              {`${i + 1}. ${step.agent}`}
+                            </strong>
+                            <div style={{ marginTop: 4, fontSize: 11, color: 'rgba(255,255,255,0.4)', wordBreak: 'break-word' }}>
+                              {typeof step.output === 'object'
+                                ? Object.entries(step.output)
+                                    .filter(([k]) => !k.startsWith('_'))
+                                    .slice(0, 4)
+                                    .map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v).slice(0, 60) : String(v).slice(0, 60)}`)
+                                    .join(' | ')
+                                : String(step.output).slice(0, 150)}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
 
                 {/* Regenerar + Export + Variants */}
                 <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -2657,6 +2963,7 @@ export default function ContentGenerator() {
                           {h.tone} &middot; {new Date(h.timestamp).toLocaleDateString()}
                         </div>
                       </div>
+                      {h.result?._source === 'agentic' && <span style={{ fontSize: 8, color: "#F59E0B", fontFamily: "'DM Mono', monospace", border: "1px solid rgba(245,158,11,0.25)", borderRadius: 3, padding: "1px 4px" }}>{'\ud83e\udd16'}</span>}
                       {h.usedAI && <span style={{ fontSize: 8, color: h.result?._source === 'huggingface' ? "#F59E0B" : "#4ADE80", fontFamily: "'DM Mono', monospace", border: `1px solid ${h.result?._source === 'huggingface' ? "rgba(245,158,11,0.25)" : "rgba(74,222,128,0.25)"}`, borderRadius: 3, padding: "1px 4px" }}>{h.result?._source === 'huggingface' ? 'HF' : 'AI'}</span>}
                     </button>
                   );
@@ -2683,7 +2990,7 @@ export default function ContentGenerator() {
         {/* FOOTER */}
         <div style={{ marginTop: 24, textAlign: "center" }}>
           <p style={{ fontSize: 10, color: "rgba(255,255,255,0.12)", fontFamily: "'DM Mono', monospace", letterSpacing: "0.1em" }}>
-            CLAUDE API · HUGGING FACE · DALL-E 3 · MAKE.COM INTEGRATION READY
+            CLAUDE API · HUGGING FACE · AGENTIC PIPELINE · DALL-E 3 · MAKE.COM READY
           </p>
         </div>
       </div>
