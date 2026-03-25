@@ -109,7 +109,7 @@ const UI = {
     templateBadge: "Smart Templates",
     agenticBadge: "\ud83e\udd16 Ag\u00e9ntico",
     agenticMode: "Modo Ag\u00e9ntico",
-    pipelineTitle: "Pipeline IA (5 agentes)",
+    pipelineTitle: "Pipeline IA (7 agentes)",
     historyTitle: "Historial",
     clearHistory: "Limpiar historial",
     noHistory: "Sin historial",
@@ -172,7 +172,7 @@ const UI = {
     templateBadge: "Smart Templates",
     agenticBadge: "\ud83e\udd16 Agentic",
     agenticMode: "Agentic Mode",
-    pipelineTitle: "AI Pipeline (5 agents)",
+    pipelineTitle: "AI Pipeline (7 agents)",
     historyTitle: "History",
     clearHistory: "Clear history",
     noHistory: "No history yet",
@@ -1239,7 +1239,12 @@ function analyzeBrand(text, lang) {
   const audienceMatch = text.match(/(?:para|for)\s+(.{5,50}?)(?:\s+(?:que|con|with|that)|,|\.|$)/i);
   const audience = audienceMatch ? audienceMatch[1].trim() : '';
 
-  return { productType, valueProps, metrics, triggers, audience, productName: text.split(/[.,\n]/).at(0)?.trim().slice(0, 50) || text.slice(0, 50) };
+  // Extract a core benefit phrase
+  const benefitMatch = text.match(/(?:que|that|which)\s+(.{10,80}?)(?:\.|,|$)/i)
+    || text.match(/(?:reduce|reduces|mejora|improves|aumenta|increases|elimina|eliminates|ayuda|helps)\s+(.{5,60}?)(?:\.|,|$)/i);
+  const benefit = benefitMatch ? benefitMatch[1].trim() : (valueProps[0] || '');
+
+  return { productType, valueProps, metrics, triggers, audience, benefit, productName: text.split(/[.,\n]/).at(0)?.trim().slice(0, 50) || text.slice(0, 50) };
 }
 
 function profileAudience(analysis, lang) {
@@ -1292,6 +1297,199 @@ function suggestPositioning(analysis, platform, lang) {
   else if (valueProps.length > 0) hookType = 'transformation';
 
   return { angle, hookType, differentiator: valueProps[0] || (lang === 'es' ? 'solución única en el mercado' : 'unique market solution') };
+}
+
+// ─── AGENT 3: HOOK GENERATOR ──────────────────────────────────────────────
+function generateHooks(brandAnalysis, audienceProfile, lang) {
+  const { productName, benefit, audience, metrics, valueProps } = brandAnalysis;
+  const { painPoints, desires } = audienceProfile;
+
+  const hooks = [];
+
+  // 1. CURIOSITY GAP
+  if (lang === 'es') {
+    hooks.push({
+      type: 'curiosity',
+      hook: benefit
+        ? `Lo que ${audience || 'nadie'} no sabía sobre ${benefit.split(' ').slice(0, 4).join(' ')}`
+        : `El secreto que está transformando a ${audience || 'miles de profesionales'}`,
+      score: 0
+    });
+  } else {
+    hooks.push({
+      type: 'curiosity',
+      hook: benefit
+        ? `What ${audience || 'no one'} knew about ${benefit.split(' ').slice(0, 4).join(' ')}`
+        : `The secret transforming ${audience || 'thousands of professionals'}`,
+      score: 0
+    });
+  }
+
+  // 2. SPECIFIC NUMBER
+  if (metrics.length > 0) {
+    const metric = metrics[0];
+    if (lang === 'es') {
+      hooks.push({
+        type: 'number',
+        hook: `${metric} es todo lo que necesitas${audience ? ` como ${audience.split(' ').slice(0, 3).join(' ')}` : ''}`,
+        score: 0
+      });
+    } else {
+      hooks.push({
+        type: 'number',
+        hook: `${metric} is all you need${audience ? ` as ${audience.split(' ').slice(0, 3).join(' ')}` : ''}`,
+        score: 0
+      });
+    }
+  }
+
+  // 3. PAIN → TRANSFORMATION
+  if (painPoints.length > 0 && desires.length > 0) {
+    if (lang === 'es') {
+      hooks.push({
+        type: 'transformation',
+        hook: `De ${painPoints[0]} a ${desires[0]}. Así de simple.`,
+        score: 0
+      });
+    } else {
+      hooks.push({
+        type: 'transformation',
+        hook: `From ${painPoints[0]} to ${desires[0]}. That simple.`,
+        score: 0
+      });
+    }
+  }
+
+  // 4. PROVOCATIVE QUESTION
+  if (lang === 'es') {
+    hooks.push({
+      type: 'question',
+      hook: audience
+        ? `¿Eres ${audience.split(' ').slice(0, 3).join(' ')} y sigues sin esto?`
+        : `¿Todavía haces esto de la manera difícil?`,
+      score: 0
+    });
+  } else {
+    hooks.push({
+      type: 'question',
+      hook: audience
+        ? `You're ${audience.split(' ').slice(0, 3).join(' ')} and still don't have this?`
+        : `Still doing this the hard way?`,
+      score: 0
+    });
+  }
+
+  // 5. SOCIAL PROOF / AUTHORITY
+  if (lang === 'es') {
+    hooks.push({
+      type: 'authority',
+      hook: metrics.length > 0
+        ? `${metrics[0]}: los resultados que ${audience || 'los expertos'} ya están viendo`
+        : `Por qué ${audience || 'los líderes de industria'} están eligiendo esto`,
+      score: 0
+    });
+  } else {
+    hooks.push({
+      type: 'authority',
+      hook: metrics.length > 0
+        ? `${metrics[0]}: the results ${audience || 'experts'} are already seeing`
+        : `Why ${audience || 'industry leaders'} are choosing this`,
+      score: 0
+    });
+  }
+
+  return hooks;
+}
+
+// ─── AGENT 4: VIRAL SCORE EVALUATOR ──────────────────────────────────────
+function evaluateViralScore(hooks, platform) {
+  return hooks.map(hook => {
+    let score = 50;
+    const text = hook.hook;
+
+    // Shorter = punchier (ideal: 8-12 words)
+    const wordCount = text.split(' ').length;
+    if (wordCount >= 6 && wordCount <= 12) score += 15;
+    else if (wordCount > 12) score -= 10;
+
+    // Has a number = more credible
+    if (/\d/.test(text)) score += 12;
+
+    // Asks a question = engagement
+    if (text.includes('?') || text.includes('¿')) score += 10;
+
+    // Has emotional trigger words
+    const emotionalWords = ['transform','secreto','secret','nadie','nobody','simple','easy','fácil','increíble','incredible','poder','power','gratis','free','nuevo','new','exclusivo','exclusive','último','last','primer','first'];
+    if (emotionalWords.some(w => text.toLowerCase().includes(w))) score += 8;
+
+    // Platform bonus
+    if (platform.toLowerCase().includes('twitter') && wordCount <= 10) score += 10;
+    if (platform.toLowerCase().includes('linkedin') && hook.type === 'authority') score += 10;
+    if (platform.toLowerCase().includes('instagram') && hook.type === 'transformation') score += 10;
+    if (platform.toLowerCase().includes('facebook') && hook.type === 'question') score += 10;
+
+    hook.score = Math.min(100, Math.max(0, score));
+    return hook;
+  }).sort((a, b) => b.score - a.score);
+}
+
+// ─── AGENT 5: CREATIVE TRANSFORMER ──────────────────────────────────────
+function creativeTransform(bestHook, brandAnalysis, audienceProfile, tone, format, platform, lang) {
+  const { productName, benefit, audience, metrics, valueProps } = brandAnalysis;
+  const { painPoints, desires } = audienceProfile;
+
+  const headline = bestHook.hook;
+
+  // Subheadline complements the hook with the core benefit
+  let subheadline;
+  if (lang === 'es') {
+    if (bestHook.type === 'curiosity' && benefit) subheadline = benefit.charAt(0).toUpperCase() + benefit.slice(1);
+    else if (bestHook.type === 'number' && audience) subheadline = `Diseñado para ${audience}`;
+    else if (bestHook.type === 'transformation') subheadline = `${productName} hace la diferencia`;
+    else if (bestHook.type === 'question' && valueProps[0]) subheadline = valueProps[0].charAt(0).toUpperCase() + valueProps[0].slice(1);
+    else subheadline = `Descubre ${productName}`;
+  } else {
+    if (bestHook.type === 'curiosity' && benefit) subheadline = benefit.charAt(0).toUpperCase() + benefit.slice(1);
+    else if (bestHook.type === 'number' && audience) subheadline = `Built for ${audience}`;
+    else if (bestHook.type === 'transformation') subheadline = `${productName} makes the difference`;
+    else if (bestHook.type === 'question' && valueProps[0]) subheadline = valueProps[0].charAt(0).toUpperCase() + valueProps[0].slice(1);
+    else subheadline = `Discover ${productName}`;
+  }
+
+  // Body: empathize → present solution → proof → emotional close
+  const bodyParts = [];
+  if (lang === 'es') {
+    if (painPoints[0]) bodyParts.push(`Sabemos lo que es lidiar con ${painPoints[0]}.`);
+    if (benefit) bodyParts.push(`${productName} ${benefit}.`);
+    else bodyParts.push(`${productName} fue creado para resolver exactamente eso.`);
+    if (metrics.length > 0) bodyParts.push(`Resultados reales: ${metrics.join(', ')}.`);
+    if (desires[0]) bodyParts.push(`Porque ${audience || 'tú'} merece ${desires[0]}.`);
+  } else {
+    if (painPoints[0]) bodyParts.push(`We know what it's like dealing with ${painPoints[0]}.`);
+    if (benefit) bodyParts.push(`${productName} ${benefit}.`);
+    else bodyParts.push(`${productName} was built to solve exactly that.`);
+    if (metrics.length > 0) bodyParts.push(`Real results: ${metrics.join(', ')}.`);
+    if (desires[0]) bodyParts.push(`Because ${audience || 'you'} deserve ${desires[0]}.`);
+  }
+
+  // CTA matches the hook energy
+  const ctaMap = {
+    curiosity: { es: `Descubre ${productName} ahora`, en: `Discover ${productName} now` },
+    number: { es: `Empieza tu transformación hoy`, en: `Start your transformation today` },
+    transformation: { es: `Da el primer paso`, en: `Take the first step` },
+    question: { es: `Pruébalo gratis`, en: `Try it free` },
+    authority: { es: `Únete a los que ya lo usan`, en: `Join those already using it` },
+  };
+  const cta = ctaMap[bestHook.type]?.[lang] || ctaMap.curiosity[lang];
+
+  return {
+    headline,
+    subheadline,
+    body: bodyParts.join(' '),
+    cta,
+    hookType: bestHook.type,
+    viralScore: bestHook.score,
+  };
 }
 
 function generateIntelligentCopy(brand, audience, positioning, platform, tone, format, lang) {
@@ -1373,11 +1571,27 @@ function optimizeForPlatform(copy, platform, lang) {
 
 function agenticGenerate(brandText, platform, tone, format, lang) {
   try {
+    // Agent 1: Brand Analyzer
     const brandAnalysis = analyzeBrand(brandText, lang);
+
+    // Agent 2: Audience Profiler
     const audienceProfile = profileAudience(brandAnalysis, lang);
+
+    // Agent 3: Hook Generator (NEW)
+    const hooks = generateHooks(brandAnalysis, audienceProfile, lang);
+
+    // Agent 4: Viral Score Evaluator (NEW)
+    const scoredHooks = evaluateViralScore(hooks, platform);
+
+    // Agent 5: Creative Transformer (NEW)
+    const bestHook = scoredHooks[0];
+    const creativeCopy = creativeTransform(bestHook, brandAnalysis, audienceProfile, tone, format, platform, lang);
+
+    // Agent 6: Positioning Strategist
     const positioning = suggestPositioning(brandAnalysis, platform, lang);
-    const copy = generateIntelligentCopy(brandAnalysis, audienceProfile, positioning, platform, tone, format, lang);
-    const optimized = optimizeForPlatform(copy, platform, lang);
+
+    // Agent 7: Platform Optimizer
+    const optimized = optimizeForPlatform(creativeCopy, platform, lang);
 
     // Augment with visual/timing data using existing smart generators
     const parsed = parseBrand(brandText);
@@ -1406,12 +1620,16 @@ function agenticGenerate(brandText, platform, tone, format, lang) {
       color_palette,
       posting_time,
       _source: 'agentic',
+      _viralScore: bestHook.score,
+      _allHooks: scoredHooks,
       _pipeline: [
-        { agent: lang === 'es' ? 'Analizador de Marca' : 'Brand Analyzer', output: brandAnalysis },
-        { agent: lang === 'es' ? 'Perfilador de Audiencia' : 'Audience Profiler', output: audienceProfile },
-        { agent: lang === 'es' ? 'Estratega de Posicionamiento' : 'Positioning Strategist', output: positioning },
-        { agent: lang === 'es' ? 'Copywriter' : 'Copywriter', output: copy },
-        { agent: lang === 'es' ? 'Optimizador de Plataforma' : 'Platform Optimizer', output: optimized },
+        { agent: lang === 'es' ? 'Analizador de Marca' : 'Brand Analyzer', output: `Product: ${brandAnalysis.productName}, Type: ${brandAnalysis.productType}` },
+        { agent: lang === 'es' ? 'Perfilador de Audiencia' : 'Audience Profiler', output: `Audience: ${audienceProfile.audience}, Pain: ${audienceProfile.painPoints[0]}` },
+        { agent: lang === 'es' ? 'Generador de Hooks' : 'Hook Generator', output: `${hooks.length} hooks generated` },
+        { agent: lang === 'es' ? 'Evaluador Viral' : 'Viral Evaluator', output: `Best: "${bestHook.hook}" (${bestHook.score}/100)` },
+        { agent: lang === 'es' ? 'Transformador Creativo' : 'Creative Transformer', output: `Type: ${bestHook.type}, Viral: ${bestHook.score}` },
+        { agent: lang === 'es' ? 'Estratega de Posicionamiento' : 'Positioning Strategist', output: positioning.angle },
+        { agent: lang === 'es' ? 'Optimizador de Plataforma' : 'Platform Optimizer', output: `Optimized for ${platform}` },
       ],
     };
   } catch (e) {
@@ -2709,6 +2927,18 @@ export default function ContentGenerator() {
                 <div key={activeTab} style={{ animation: "tabFade 0.25s ease" }}>
                   {activeTab === "copy" && (
                     <div>
+                      {result._viralScore && (
+                        <div style={{marginBottom:8,display:'flex',alignItems:'center',gap:8}}>
+                          <span style={{background:'#10B98122',color:'#10B981',padding:'2px 8px',borderRadius:12,fontSize:11,fontWeight:600}}>
+                            Viral: {result._viralScore}/100
+                          </span>
+                          {result._allHooks && result._allHooks[0] && (
+                            <span style={{fontSize:10,color:'#94a3b8',textTransform:'capitalize'}}>
+                              Hook: {result._allHooks[0].type}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       <CopyCard label="Headline" content={result.headline} accent={accent} onCopied={showToast} s={s} />
                       <CopyCard label="Subheadline" content={result.subheadline} accent={accent} onCopied={showToast} s={s} />
                       <CopyCard label={s.bodyLabel} content={result.body} accent={accent} onCopied={showToast} s={s} />
@@ -2811,6 +3041,24 @@ export default function ContentGenerator() {
                             </div>
                           </div>
                         ))}
+                        {result._allHooks && (
+                          <div style={{marginTop:12}}>
+                            <div style={{fontSize:12,color:'#E8C547',fontWeight:700,marginBottom:8}}>
+                              {lang === 'en' ? 'Hook Candidates (ranked by viral score):' : 'Candidatos de Hook (por score viral):'}
+                            </div>
+                            {result._allHooks.map((h, i) => (
+                              <div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'4px 0',fontSize:12,color: i===0 ? '#10B981' : '#64748b'}}>
+                                <span style={{width:36,textAlign:'right',fontWeight:700}}>{h.score}</span>
+                                <div style={{width:60,height:6,background:'#1e293b',borderRadius:3,overflow:'hidden'}}>
+                                  <div style={{width:`${h.score}%`,height:'100%',background: i===0 ? '#10B981' : '#334155',borderRadius:3}}/>
+                                </div>
+                                <span style={{textTransform:'capitalize',width:80,color:'#94a3b8'}}>{h.type}</span>
+                                <span>{h.hook}</span>
+                                {i === 0 && <span style={{color:'#10B981',fontSize:10,fontWeight:700}}>&#9733; WINNER</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
